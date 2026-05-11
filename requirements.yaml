@@ -1,0 +1,23 @@
+packages:
+  "framer-motion": "For premium page transitions, smooth enter animations, and micro-interactions"
+  "lucide-react": "For beautiful, consistent iconography across the application"
+  "zustand": "For lightweight client-side state management (auth modals, UI toggles)"
+  "date-fns": "For formatting order dates and timelines elegantly"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to resolve Tailwind CSS class conflicts"
+
+images:
+  - path: "artifacts/pisal-store/public/images/hero-spices.png"
+    description: "Cinematic, moody overhead macro shot of premium Indian spices (star anise, cinnamon sticks, cardamom, rich red chili powder) arranged elegantly on a dark slate textured background with subtle, warm golden directional lighting."
+    aspect_ratio: "21:9"
+  - path: "artifacts/pisal-store/public/images/logo-pisal.png"
+    description: "Minimalist, luxury typography logo for the brand 'PISAL'. Elegant gold serif font on a transparent background. High end premium FMCG brand aesthetic."
+    aspect_ratio: "3:1"
+  - path: "artifacts/pisal-store/public/images/pattern-bg.png"
+    description: "Subtle, dark luxury seamless mandala or geometric Indian pattern background in deep crimson and charcoal black. Barely visible, used for texture."
+    aspect_ratio: "16:9"
+
+notes:
+  - "The generated @workspace/api-client-react hooks are used for all data fetching."
+  - "Since customFetch is external, a window.fetch interceptor is placed in App.tsx to inject the 'Authorization: Bearer <token>' header from localStorage for authenticated requests."
+  - "Relying on existing shadcn/ui components in src/components/ui/."

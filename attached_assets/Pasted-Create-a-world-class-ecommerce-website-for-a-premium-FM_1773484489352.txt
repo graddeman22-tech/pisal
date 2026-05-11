@@ -1,0 +1,282 @@
+Create a world-class ecommerce website for a premium FMCG brand named **PISAL**.
+
+Domain: pisal.in
+
+The website must be modern, extremely simple to use, fast, and visually attractive so that customers enjoy using it without confusion or burden.
+
+The design should combine the best features used by the world’s top ecommerce websites such as Amazon, Apple Store, Nike, and Shopify stores.
+
+The goal is to create a powerful ecommerce platform that looks like a premium brand and can handle many products in the future.
+
+---
+
+BRAND IDENTITY
+
+Brand Name: PISAL
+Tagline: Pure Taste of India
+
+Theme Style:
+Premium, clean, modern, trustworthy.
+
+Primary Color:
+Deep red
+
+Secondary Colors:
+Black, gold, white
+
+Design style:
+Minimal UI, modern typography, smooth animations.
+
+---
+
+LOGIN SYSTEM (IMPORTANT)
+
+Users must be able to login using **mobile phone number with OTP verification**.
+
+Login flow:
+
+1. User enters phone number
+2. System sends OTP to the phone number
+3. User enters OTP
+4. OTP verified
+5. User account created automatically if first time user
+
+Features:
+
+Phone number authentication
+OTP verification
+Secure login session
+Auto account creation
+Logout system
+
+OTP services that can be used:
+
+Firebase Authentication
+Twilio SMS
+Fast2SMS API
+
+---
+
+HOMEPAGE STRUCTURE
+
+Create a powerful homepage with the following sections:
+
+1. Header
+   Logo
+   Navigation menu
+   Search bar
+   Cart icon
+   Login / Account icon
+
+2. Hero Section
+   Large premium banner
+   Brand tagline
+   Shop Now button
+
+3. Featured Products
+   Display best selling spices
+   Product cards with image, rating, price, and add to cart button
+
+4. Categories Section
+   Whole spices
+   Ground spices
+   Blended masala
+   Combo packs
+   Future FMCG products
+
+5. Why Choose PISAL
+   Pure ingredients
+   Farm fresh spices
+   No chemicals
+   Premium packaging
+   Fast delivery
+
+6. Customer Reviews
+   Beautiful testimonial slider
+
+7. Special Offers
+   Discount banner
+   Coupon code section
+
+8. Newsletter Signup
+
+9. Footer
+   About
+   Contact
+   Shipping policy
+   Privacy policy
+   Social links
+
+---
+
+PRODUCT PAGE
+
+Each product page must include:
+
+Product image gallery with zoom
+Product title
+Price
+Weight options (100g, 200g, 500g)
+Add to cart button
+Buy now button
+Description
+Ingredients
+Benefits
+Ratings and reviews
+Related products
+
+---
+
+ECOMMERCE FEATURES
+
+Shopping cart system
+Wishlist system
+Product search
+Filters
+Sorting options
+Coupon codes
+Discount campaigns
+Order tracking
+Order history
+Invoice download
+Saved addresses
+
+Customers must be able to see:
+
+How many times they ordered
+Which products they purchased
+Order history
+
+---
+
+CHECKOUT SYSTEM
+
+Fast and simple checkout process.
+
+Steps:
+
+1 Address
+2 Payment
+3 Confirm order
+
+Payment gateways:
+
+Razorpay
+Stripe
+UPI
+Credit card
+Debit card
+Cash on delivery
+
+---
+
+USER ACCOUNT SYSTEM
+
+Users must have:
+
+Profile page
+Order history
+Wishlist
+Saved addresses
+Notifications
+
+---
+
+ADMIN DASHBOARD
+
+Create a powerful admin control panel.
+
+Admin must be able to manage:
+
+Products
+Orders
+Customers
+Inventory
+Coupons
+Discount campaigns
+Payments
+
+Dashboard must show:
+
+Total revenue
+Daily orders
+Monthly sales
+Best selling products
+Customer analytics
+Inventory alerts
+
+---
+
+DATABASE STRUCTURE
+
+Use PostgreSQL database.
+
+Tables required:
+
+users
+admins
+products
+categories
+orders
+order_items
+coupons
+reviews
+payments
+
+Users table must include:
+
+id
+phone_number
+otp_verified
+created_at
+
+Admin table must contain a default admin user.
+
+---
+
+TECH STACK
+
+Frontend:
+Next.js
+Tailwind CSS
+Framer Motion animations
+
+Backend:
+Node.js
+Express
+
+Database:
+PostgreSQL
+
+Authentication:
+OTP based login with JWT session
+
+---
+
+MARKETING FEATURES
+
+Email marketing integration
+Abandoned cart recovery
+Referral program
+Customer loyalty points
+Discount popup
+SEO optimized product pages
+
+---
+
+PERFORMANCE
+
+Fast loading website
+Mobile responsive
+SEO optimized
+Secure checkout
+Optimized images
+High performance hosting
+
+---
+
+GOAL
+
+The website must look like a premium brand ecommerce store, be extremely simple to use, and encourage customers to browse products and purchase easily.
+
+Customers should feel trust and professionalism when visiting the PISAL website.

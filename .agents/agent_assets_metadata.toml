@@ -1,0 +1,20 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "h8DxsBihUn84mgVzsXbjP"
+uri = "file://attached_assets/generated_images/pisal-turmeric-packaging.png"
+type = "image"
+title = "PISAL — Turmeric Powder Packaging (Front)"
+
+[[outputs]]
+id = "dn9bch_joDbzwJu6RSp7Y"
+uri = "file://attached_assets/generated_images/pisal-chilli-packaging.png"
+type = "image"
+title = "PISAL — Red Chilli Powder Packaging (Front)"
+
+[[outputs]]
+id = "R4pPRES-1ec3c_tUdfn30"
+uri = "file://attached_assets/generated_images/pisal-product-range-flatlay.png"
+type = "image"
+title = "PISAL — Full Product Range (Lifestyle Flat-Lay)"

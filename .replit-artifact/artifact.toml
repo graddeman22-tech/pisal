@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "PISAL - Pure Taste of India"
+version = "1.0.0"
+id = "artifacts/pisal-store"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 19121
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/pisal-store run dev"
+
+[services.env]
+PORT = "19121"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/pisal-store", "run", "build"]
+publicDir = "artifacts/pisal-store/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
