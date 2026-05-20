@@ -39,14 +39,16 @@ app.post("/api/auth/send-otp", async (req, res) => {
     const existing = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, phone));
+      .where(eq(usersTable.phone, String(phone)));
     if (existing.length > 0) {
       await db
         .update(usersTable)
         .set({ otp, otpExpiresAt })
-        .where(eq(usersTable.phone, phone));
+        .where(eq(usersTable.phone, String(phone)));
     } else {
-      await db.insert(usersTable).values({ phone, otp, otpExpiresAt });
+      await db
+        .insert(usersTable)
+        .values({ phone: String(phone), otp, otpExpiresAt });
     }
     res.json({ message: "OTP sent successfully", otp });
   } catch (err) {
@@ -65,7 +67,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     const users = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, phone));
+      .where(eq(usersTable.phone, String(phone)));
     const user = users[0];
     if (!user) {
       res.status(404).json({ message: "User not found" });
@@ -175,15 +177,15 @@ function formatProduct(p: any, cat?: any) {
 
 app.get("/api/products", async (req, res) => {
   try {
-    const {
-      category,
-      search,
-      sort,
-      minPrice,
-      maxPrice,
-      page = "1",
-      limit = "12",
-    } = req.query as any;
+    const query = req.query as any;
+    const category = query.category ? String(query.category) : undefined;
+    const search = query.search ? String(query.search) : undefined;
+    const sort = query.sort ? String(query.sort) : undefined;
+    const minPrice = query.minPrice ? String(query.minPrice) : undefined;
+    const maxPrice = query.maxPrice ? String(query.maxPrice) : undefined;
+    const page = query.page ? String(query.page) : "1";
+    const limit = query.limit ? String(query.limit) : "12";
+
     const pageNum = parseInt(page),
       limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
@@ -206,12 +208,14 @@ app.get("/api/products", async (req, res) => {
       .where(whereCondition);
     let sorted = [...all];
     if (sort === "price_asc")
-      sorted.sort((a, b) => a.product.price - b.product.price);
+      sorted.sort((a, b) => Number(a.product.price) - Number(b.product.price));
     else if (sort === "price_desc")
-      sorted.sort((a, b) => b.product.price - a.product.price);
+      sorted.sort((a, b) => Number(b.product.price) - Number(a.product.price));
     else if (sort === "newest")
       sorted.sort(
-        (a, b) => b.product.createdAt.getTime() - a.product.createdAt.getTime(),
+        (a, b) =>
+          new Date(b.product.createdAt).getTime() -
+          new Date(a.product.createdAt).getTime(),
       );
     const paginated = sorted.slice(offset, offset + limitNum);
     res.json({
@@ -543,7 +547,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       const coupons = await db
         .select()
         .from(couponsTable)
-        .where(eq(couponsTable.code, couponCode));
+        .where(eq(couponsTable.code, String(couponCode).toUpperCase()));
       const coupon = coupons[0];
       if (coupon && coupon.isActive) {
         if (coupon.discountType === "percent") {
@@ -595,7 +599,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
         discount,
         deliveryFee,
         total,
-        couponCode: couponCode || null,
+        couponCode: couponCode ? String(couponCode) : null,
         address: addressData,
         items,
         estimatedDelivery,
@@ -642,10 +646,14 @@ app.get("/api/orders/:id", requireAuth, async (req, res) => {
 app.post("/api/coupons/validate", async (req, res) => {
   try {
     const { code, orderTotal } = req.body;
+    if (!code) {
+      res.json({ valid: false, message: "Invalid coupon code" });
+      return;
+    }
     const coupons = await db
       .select()
       .from(couponsTable)
-      .where(eq(couponsTable.code, code.toUpperCase()));
+      .where(eq(couponsTable.code, String(code).toUpperCase()));
     const coupon = coupons[0];
     if (!coupon) {
       res.json({ valid: false, message: "Invalid coupon code" });
@@ -655,7 +663,7 @@ app.post("/api/coupons/validate", async (req, res) => {
       res.json({ valid: false, message: "Coupon is not active" });
       return;
     }
-    if (coupon.expiresAt && new Date() > coupon.expiresAt) {
+    if (coupon.expiresAt && new Date() > new Date(coupon.expiresAt)) {
       res.json({ valid: false, message: "Coupon has expired" });
       return;
     }
@@ -760,7 +768,7 @@ app.get("/api/users/profile", requireAuth, async (req, res) => {
       email: user.email,
       isAdmin: user.isAdmin,
       totalOrders: orders.length,
-      totalSpent: orders.reduce((s, o) => s + o.total, 0),
+      totalSpent: orders.reduce((s, o) => s + Number(o.total), 0),
       loyaltyPoints: user.loyaltyPoints,
       createdAt: user.createdAt,
     });
@@ -792,7 +800,7 @@ app.put("/api/users/profile", requireAuth, async (req, res) => {
       email: updated.email,
       isAdmin: updated.isAdmin,
       totalOrders: orders.length,
-      totalSpent: orders.reduce((s, o) => s + o.total, 0),
+      totalSpent: orders.reduce((s, o) => s + Number(o.total), 0),
       loyaltyPoints: updated.loyaltyPoints,
       createdAt: updated.createdAt,
     });
@@ -869,7 +877,7 @@ app.post("/api/users/addresses", requireAuth, async (req, res) => {
 app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
   try {
     const orders = await db.select().from(ordersTable);
-    const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
+    const totalRevenue = orders.reduce((s, o) => s + Number(o.total), 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const monthStart = new Date();
@@ -917,10 +925,10 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
       totalOrders: orders.length,
       totalCustomers: Number(customerCount),
       totalProducts: Number(productCount),
-      dailyOrders: orders.filter((o) => o.createdAt >= today).length,
+      dailyOrders: orders.filter((o) => new Date(o.createdAt) >= today).length,
       monthlyRevenue: orders
-        .filter((o) => o.createdAt >= monthStart)
-        .reduce((s, o) => s + o.total, 0),
+        .filter((o) => new Date(o.createdAt) >= monthStart)
+        .reduce((s, o) => s + Number(o.total), 0),
       bestSellingProducts: allProducts
         .filter(({ product }) => product.isBestseller)
         .slice(0, 5)
@@ -929,7 +937,10 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
         .filter(({ product }) => product.stockQuantity <= 10)
         .map(({ product, category }) => fmt(product, category)),
       recentOrders: [...orders]
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )
         .slice(0, 5)
         .map(formatOrder),
     });
@@ -1054,7 +1065,9 @@ app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
 
 app.get("/api/admin/orders", requireAdmin, async (req, res) => {
   try {
-    const { status, page = "1" } = req.query as any;
+    const query = req.query as any;
+    const status = query.status ? String(query.status) : undefined;
+    const page = query.page ? String(query.page) : "1";
     const pageNum = parseInt(page),
       limitNum = 20,
       offset = (pageNum - 1) * limitNum;
@@ -1112,62 +1125,20 @@ app.post("/api/admin/coupons", requireAdmin, async (req, res) => {
     const [coupon] = await db
       .insert(couponsTable)
       .values({
-        code: code.toUpperCase(),
+        code: String(code).toUpperCase(),
         discountType,
         discountValue,
-        minOrderValue: minOrderValue || 0,
+        minOrderValue,
         maxDiscount,
         isActive: isActive ?? true,
-        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
         usageLimit,
       })
       .returning();
     res.status(201).json(coupon);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to create coupon" });
-  }
-});
-
-app.get("/api/admin/customers", requireAdmin, async (_req, res) => {
-  try {
-    const users = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.isAdmin, false));
-    const result = [];
-    for (const user of users) {
-      const orders = await db
-        .select()
-        .from(ordersTable)
-        .where(eq(ordersTable.userId, user.id));
-      result.push({
-        id: user.id,
-        phone: user.phone,
-        name: user.name,
-        email: user.email,
-        isAdmin: user.isAdmin,
-        totalOrders: orders.length,
-        totalSpent: orders.reduce((s, o) => s + o.total, 0),
-        loyaltyPoints: user.loyaltyPoints,
-        createdAt: user.createdAt,
-      });
-    }
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to list customers" });
-  }
-});
-
-app.post("/api/admin/categories", requireAdmin, async (req, res) => {
-  try {
-    const { name, slug, description, imageUrl } = req.body;
-    const [cat] = await db
-      .insert(categoriesTable)
-      .values({ name, slug, description, imageUrl })
-      .returning();
-    res.status(201).json(cat);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to create category" });
   }
 });
 
