@@ -43,7 +43,7 @@ export function Navbar() {
   return (
     <>
       {/* Main navbar */}
-      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "glass-effect py-3 shadow-sm" : "bg-transparent py-4"}`}>
+      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "glass-effect py-2 shadow-sm" : "bg-transparent py-3"}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
 
           {/* Mobile Menu Toggle */}
@@ -51,11 +51,24 @@ export function Navbar() {
             <Menu className="w-6 h-6" />
           </button>
 
-          {/* Logo */}
+          {/* Dynamic Image Logo */}
           <Link href="/" className="flex items-center gap-2 relative z-10">
-            <span className="font-serif text-2xl font-black tracking-widest text-black">
-              PISAL
-            </span>
+            <img 
+              src="/images/logo.png" 
+              alt="PISAL Logo" 
+              className="h-10 w-auto md:h-12 object-contain filter drop-shadow-sm" 
+              onError={(e) => {
+                // Image na milne par fallback text dikhega taaki navbar khali na lage
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent && !parent.querySelector('.logo-fallback')) {
+                  const span = document.createElement('span');
+                  span.className = 'logo-fallback font-serif text-2xl font-black tracking-widest text-black';
+                  span.innerText = 'PISAL';
+                  parent.appendChild(span);
+                }
+              }}
+            />
           </Link>
 
           {/* Desktop Nav */}
@@ -84,7 +97,7 @@ export function Navbar() {
               <>
                 <Link href="/wishlist" className="text-foreground/70 hover:text-primary transition-colors hidden sm:block p-1">
                   <Heart className="w-5 h-5" />
-                </Link>
+                </                </Link>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger className="outline-none">
@@ -169,7 +182,22 @@ export function Navbar() {
               className="fixed inset-y-0 left-0 w-[80vw] max-w-sm bg-card shadow-2xl z-[70] p-6 flex flex-col overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-8">
-                <span className="font-serif text-xl font-black tracking-widest text-black">PISAL</span>
+                {/* Dynamic Image Logo Mobile */}
+                <img 
+                  src="/images/logo.png" 
+                  alt="PISAL Logo" 
+                  className="h-10 w-auto object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent && !parent.querySelector('.logo-fallback')) {
+                      const span = document.createElement('span');
+                      span.className = 'logo-fallback font-serif text-xl font-black tracking-widest text-black';
+                      span.innerText = 'PISAL';
+                      parent.appendChild(span);
+                    }
+                  }}
+                />
                 <button onClick={() => setMobileMenuOpen(false)} className="p-1"><X className="w-6 h-6 text-foreground" /></button>
               </div>
 
