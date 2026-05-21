@@ -178,13 +178,13 @@ function formatProduct(p: any, cat?: any) {
 app.get("/api/products", async (req, res) => {
   try {
     const query = req.query as any;
-    const category = query.category ? String(query.category) : undefined;
-    const search = query.search ? String(query.search) : undefined;
-    const sort = query.sort ? String(query.sort) : undefined;
-    const minPrice = query.minPrice ? String(query.minPrice) : undefined;
-    const maxPrice = query.maxPrice ? String(query.maxPrice) : undefined;
-    const page = query.page ? String(query.page) : "1";
-    const limit = query.limit ? String(query.limit) : "12";
+    const category = query.category ? (query.category as string) : undefined;
+    const search = query.search ? (query.search as string) : undefined;
+    const sort = query.sort ? (query.sort as string) : undefined;
+    const minPrice = query.minPrice ? (query.minPrice as string) : undefined;
+    const maxPrice = query.maxPrice ? (query.maxPrice as string) : undefined;
+    const page = query.page ? (query.page as string) : "1";
+    const limit = query.limit ? (query.limit as string) : "12";
 
     const pageNum = parseInt(page),
       limitNum = parseInt(limit);
@@ -234,7 +234,7 @@ app.get("/api/products", async (req, res) => {
 
 app.get("/api/products/:id", async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const results = await db
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
@@ -312,7 +312,7 @@ app.post("/api/cart/items", requireAuth, async (req, res) => {
     const product = await db
       .select()
       .from(productsTable)
-      .where(eq(productsTable.id, productId));
+      .where(eq(productsTable.id, Number(productId)));
     if (!product.length) {
       res.status(404).json({ message: "Product not found" });
       return;
@@ -323,7 +323,7 @@ app.post("/api/cart/items", requireAuth, async (req, res) => {
       .where(
         and(
           eq(cartItemsTable.userId, user.id),
-          eq(cartItemsTable.productId, productId),
+          eq(cartItemsTable.productId, Number(productId)),
         ),
       );
     if (existing.length > 0) {
@@ -334,7 +334,7 @@ app.post("/api/cart/items", requireAuth, async (req, res) => {
     } else {
       await db.insert(cartItemsTable).values({
         userId: user.id,
-        productId,
+        productId: Number(productId),
         quantity,
         weight: weight || null,
         price: product[0].price,
@@ -349,7 +349,7 @@ app.post("/api/cart/items", requireAuth, async (req, res) => {
 app.put("/api/cart/items/:id", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { quantity } = req.body;
     if (quantity <= 0) {
       await db
@@ -378,7 +378,7 @@ app.delete("/api/cart/items/:id", requireAuth, async (req, res) => {
       .delete(cartItemsTable)
       .where(
         and(
-          eq(cartItemsTable.id, parseInt(req.params.id)),
+          eq(cartItemsTable.id, parseInt(req.params.id as string)),
           eq(cartItemsTable.userId, user.id),
         ),
       );
@@ -432,7 +432,7 @@ app.get("/api/wishlist", requireAuth, async (req, res) => {
 app.post("/api/wishlist/:productId", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
-    const productId = parseInt(req.params.productId);
+    const productId = parseInt(req.params.productId as string);
     const existing = await db
       .select()
       .from(wishlistTable)
@@ -458,7 +458,7 @@ app.delete("/api/wishlist/:productId", requireAuth, async (req, res) => {
       .where(
         and(
           eq(wishlistTable.userId, user.id),
-          eq(wishlistTable.productId, parseInt(req.params.productId)),
+          eq(wishlistTable.productId, parseInt(req.params.productId as string)),
         ),
       );
     res.json({ message: "Removed from wishlist" });
@@ -510,7 +510,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       .from(addressesTable)
       .where(
         and(
-          eq(addressesTable.id, addressId),
+          eq(addressesTable.id, Number(addressId)),
           eq(addressesTable.userId, user.id),
         ),
       );
@@ -628,7 +628,7 @@ app.get("/api/orders/:id", requireAuth, async (req, res) => {
       .from(ordersTable)
       .where(
         and(
-          eq(ordersTable.id, parseInt(req.params.id)),
+          eq(ordersTable.id, parseInt(req.params.id as string)),
           eq(ordersTable.userId, user.id),
         ),
       );
@@ -708,7 +708,7 @@ app.post("/api/coupons/validate", async (req, res) => {
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 app.get("/api/reviews/product/:productId", async (req, res) => {
   try {
-    const productId = parseInt(req.params.productId);
+    const productId = parseInt(req.params.productId as string);
     const reviews = await db
       .select({ review: reviewsTable, user: usersTable })
       .from(reviewsTable)
@@ -733,7 +733,7 @@ app.get("/api/reviews/product/:productId", async (req, res) => {
 app.post("/api/reviews/product/:productId", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
-    const productId = parseInt(req.params.productId);
+    const productId = parseInt(req.params.productId as string);
     const { rating, comment } = req.body;
     const [review] = await db
       .insert(reviewsTable)
@@ -1002,7 +1002,7 @@ app.post("/api/admin/products", requireAdmin, async (req, res) => {
 
 app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const {
       name,
       description,
@@ -1056,7 +1056,7 @@ app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
   try {
     await db
       .delete(productsTable)
-      .where(eq(productsTable.id, parseInt(req.params.id)));
+      .where(eq(productsTable.id, parseInt(req.params.id as string)));
     res.json({ message: "Product deleted" });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete product" });
@@ -1066,8 +1066,8 @@ app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
 app.get("/api/admin/orders", requireAdmin, async (req, res) => {
   try {
     const query = req.query as any;
-    const status = query.status ? String(query.status) : undefined;
-    const page = query.page ? String(query.page) : "1";
+    const status = query.status ? (query.status as string) : undefined;
+    const page = query.page ? (query.page as string) : "1";
     const pageNum = parseInt(page),
       limitNum = 20,
       offset = (pageNum - 1) * limitNum;
@@ -1090,12 +1090,17 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
 
 app.put("/api/admin/orders/:id/status", requireAdmin, async (req, res) => {
   try {
+    const id = parseInt(req.params.id as string);
     const { status } = req.body;
     const [order] = await db
       .update(ordersTable)
       .set({ status, updatedAt: new Date() })
-      .where(eq(ordersTable.id, parseInt(req.params.id)))
+      .where(eq(ordersTable.id, id))
       .returning();
+    if (!order) {
+      res.status(404).json({ message: "Order not found" });
+      return;
+    }
     res.json(formatOrder(order));
   } catch (err) {
     res.status(500).json({ message: "Failed to update order status" });
