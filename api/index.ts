@@ -1102,44 +1102,4 @@ app.put("/api/admin/orders/:id/status", requireAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/admin/coupons", requireAdmin, async (_req, res) => {
-  try {
-    res.json(await db.select().from(couponsTable));
-  } catch (err) {
-    res.status(500).json({ message: "Failed to list coupons" });
-  }
-});
-
-app.post("/api/admin/coupons", requireAdmin, async (req, res) => {
-  try {
-    const {
-      code,
-      discountType,
-      discountValue,
-      minOrderValue,
-      maxDiscount,
-      isActive,
-      expiresAt,
-      usageLimit,
-    } = req.body;
-    const [coupon] = await db
-      .insert(couponsTable)
-      .values({
-        code: String(code).toUpperCase(),
-        discountType,
-        discountValue,
-        minOrderValue,
-        maxDiscount,
-        isActive: isActive ?? true,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-        usageLimit,
-      })
-      .returning();
-    res.status(201).json(coupon);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to create coupon" });
-  }
-});
-
 export default app;
