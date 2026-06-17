@@ -49,7 +49,7 @@ export function Navbar() {
               alt="PISAL"
               className="h-11 w-11 rounded-full object-contain bg-black shadow-md border border-amber-700/30"
             />
-            <span className="font-serif text-lg font-black tracking-wide hidden sm:inline" style={{ background: "linear-gradient(135deg, #8B0000 0%, #D4AF37 60%, #8B0000 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>PISAL</span>
+            <span className="font-serif text-lg font-black tracking-wide hidden sm:inline text-black">PISAL</span>
           </Link>
 
           <nav className="hidden lg:flex items-center gap-8">
@@ -150,7 +150,7 @@ export function Navbar() {
                     alt="PISAL"
                     className="h-10 w-10 rounded-full object-contain bg-black shadow-md border border-amber-700/30"
                   />
-                  <span className="font-serif text-lg font-black tracking-wide" style={{ background: "linear-gradient(135deg, #8B0000 0%, #D4AF37 60%, #8B0000 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>PISAL</span>
+                  <span className="font-serif text-lg font-black tracking-wide text-black">PISAL</span>
                 </div>
                 <button onClick={() => setMobileMenuOpen(false)} className="p-1"><X className="w-6 h-6" /></button>
               </div>
