@@ -13,7 +13,6 @@ const PHONES = [
 const EMAIL = "contact.pisal@gmail.com";
 const WHATSAPP_NUMBERS = [
   { number: "8953148406", display: "+91 89531 48406", label: "Support" },
-  { number: "8922022766", display: "+91 89220 22766", label: "Sales" },
 ];
 
 const fadeUp = {
