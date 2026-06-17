@@ -1,0 +1,342 @@
+Analyze my entire existing PISAL website codebase carefully before making any changes. Fix all broken buttons, non-working functions, authentication issues, upload issues, cart issues, order issues, dashboard issues, and deployment issues. Keep the current premium luxury frontend design and layout exactly the same unless absolutely necessary.
+
+IMPORTANT:
+
+* Do NOT break the existing frontend design
+* Do NOT remove existing pages
+* Keep the luxury premium UI and animations
+* Make everything production-ready
+* Make everything easy to deploy on Vercel
+* Avoid hardcoded values
+* Write clean scalable reusable code
+* Fix all console errors
+* Fix all TypeScript errors
+* Test every feature before finishing
+
+=================================================
+
+🎯 MAIN GOAL
+
+I want a SIMPLE, NO-CODE style Admin Dashboard where I can manage everything visually without editing backend code manually.
+
+The dashboard should feel similar to Shopify:
+
+* Beginner friendly
+* Clean
+* Minimal
+* Modern
+* Mobile responsive
+
+=================================================
+
+✅ ADMIN DASHBOARD REQUIREMENTS
+
+1. WEBSITE LOGO UPLOAD SYSTEM
+
+Create a Logo Management section inside Admin Dashboard.
+
+Features:
+
+* Upload website logo directly from device/gallery
+* No image URL field
+* Show logo preview before saving
+* Store logo properly
+* After upload, logo should automatically update across entire website
+* Admin should never need backend editing for logo changes
+
+=================================================
+
+2. PRODUCT MANAGEMENT SYSTEM
+
+Completely remove Image URL system.
+
+Replace it with:
+
+* Product image upload from gallery/device
+* Drag and drop upload support if possible
+* Mobile upload support
+
+Admin should be able to:
+
+* Upload product image directly
+* Add product name
+* Add product description
+* Add price
+* Add stock quantity
+* Add category
+* Save product easily
+
+Requirements:
+
+* Show image preview before saving
+* Save products correctly without errors
+* Product should instantly appear on website
+* Keep dashboard UI premium and clean
+* Add delete/edit product support if possible
+
+=================================================
+
+3. PAYMENT SETTINGS (VERY IMPORTANT)
+
+Create a dedicated “Payment Settings” section inside Admin Dashboard.
+
+Admin should be able to:
+
+* Add Razorpay Key ID
+* Add Razorpay Secret Key
+* Save API keys directly from dashboard
+* Update keys anytime without touching backend code
+* Enable/Disable Razorpay
+* Add Test Mode / Live Mode switch
+
+IMPORTANT:
+
+* Do NOT require backend editing for API keys
+* Dashboard should visually manage payment settings
+* Save keys securely
+* Auto-load saved keys after refresh
+
+=================================================
+
+4. CART & ORDER SYSTEM (VERY IMPORTANT)
+
+Fix and activate the entire cart and ordering functionality.
+
+Users should be able to:
+
+* Add products to cart
+* Remove products from cart
+* Update quantity
+* Checkout properly
+* Place orders successfully
+* Pay using Razorpay
+* View order confirmation
+
+IMPORTANT:
+
+* Fix all broken cart buttons
+* Fix checkout issues
+* Fix order save issues
+* Ensure everything works on mobile too
+
+=================================================
+
+5. LOGIN & SIGNUP SYSTEM
+
+Keep existing Login and Sign Up button design.
+
+When user clicks Sign Up:
+Show clean popup/modal with this structure:
+
+[ LOGO ]
+
+Create Account
+
+[ Enter Email ]
+
+[ Create Password ]
+
+[ Sign Up Button ]
+
+Requirements:
+
+* Email signup should work properly
+* Auto login after signup
+* Clean modern premium UI
+* Fully responsive popup
+
+Users should also be able to:
+
+* Login with email
+* Login with phone number (if enabled)
+* Create/edit profile
+* Upload profile image/avatar
+* Save profile data correctly
+
+IMPORTANT:
+
+* Fix profile upload issue
+* Fix authentication bugs
+* Ensure all auth buttons work properly
+
+=================================================
+
+6. USER PROFILE SYSTEM
+
+After login:
+
+* Users should have their own profile page
+* Users should upload profile image
+* Users should edit name/details
+* Profile data should save correctly
+* Fix all non-working profile features
+
+=================================================
+
+7. DASHBOARD DESIGN
+
+Dashboard should:
+
+* Stay clean and minimal
+* Keep current premium feel
+* Be simple to use
+* Not require coding knowledge
+* Use reusable components
+* Be mobile responsive
+
+=================================================
+
+8. BRANDING & LOGO VISIBILITY (VERY IMPORTANT)
+
+Ensure the PISAL logo appears consistently and professionally across the entire website.
+
+The logo should automatically appear in all important sections including:
+
+* Header/Navbar
+* Login popup
+* Signup popup
+* User profile section
+* Admin Dashboard
+* Sidebar/Menu
+* Footer
+* Checkout page
+* Cart page
+* Order confirmation page
+* Mobile menu
+* Website loading screen (if available)
+* Browser favicon/tab icon
+* Email templates (if applicable)
+
+IMPORTANT:
+
+* Logo should update automatically everywhere when changed from Admin Dashboard
+* Use centralized logo management system
+* Do NOT require manual code editing to change logo
+* Ensure logo is responsive on mobile and desktop
+* Keep logo high quality and optimized
+* Maintain premium luxury branding style throughout the website
+* Use proper spacing and alignment for logo placement
+
+The branding should feel consistent, professional, premium, and luxury-focused across all pages and components.
+
+=================================================
+
+9. TECHNICAL & CODE QUALITY REQUIREMENTS
+
+IMPORTANT:
+
+* Make project fully compatible with Vercel deployment
+* Avoid hardcoded localhost URLs
+* Avoid code that breaks during production build
+* Fix hydration issues
+* Fix TypeScript issues
+* Fix console errors
+* Optimize uploads and images
+* Ensure all routes/pages work correctly
+
+Use:
+
+* Clean React + TypeScript structure
+* Scalable reusable components
+* Proper state management
+* Proper environment variable handling
+
+=================================================
+
+10. VERCEL DEPLOYMENT SUPPORT (VERY IMPORTANT)
+
+Structure the project properly for easy Vercel deployment.
+
+Clearly provide:
+
+A. Framework Information
+Mention clearly:
+
+* React / Vite / Next.js / TypeScript usage
+
+B. Project Structure
+Keep clean structure like:
+
+* src/
+* components/
+* pages/
+* hooks/
+* lib/
+* public/
+
+C. Environment Variables
+Clearly explain what to add in:
+
+* `.env`
+* `.env.local`
+* Vercel Environment Variables
+
+Example:
+VITE_RAZORPAY_KEY=your_key
+
+D. Vercel Configuration
+Provide:
+
+* Install Command
+* Build Command
+* Output Directory
+* Node Version (if required)
+
+Example for Vite:
+
+* Install Command: npm install
+* Build Command: npm run build
+* Output Directory: dist
+
+E. Deployment Guide
+Explain:
+
+* How to connect GitHub
+* How to import project into Vercel
+* How to add environment variables
+* How to redeploy after updates
+
+=================================================
+
+11. FINAL TESTING REQUIREMENTS
+
+Before finishing the project:
+
+Test:
+
+* All buttons
+* All forms
+* Logo upload
+* Product upload
+* Profile upload
+* Login
+* Signup
+* Add to Cart
+* Checkout
+* Razorpay payment
+* Order creation
+* Dashboard functions
+* Mobile responsiveness
+* Vercel production build
+
+Fix every broken function and every error before final completion.
+
+=================================================
+
+🎯 FINAL GOAL
+
+Create a professional luxury e-commerce website for PISAL with:
+
+* Fully working admin dashboard
+* No-code style management
+* Visual logo upload
+* Visual product upload
+* Visual Razorpay settings
+* Working authentication
+* Working profile system
+* Working cart/order system
+* Smooth mobile experience
+* Smooth Vercel deployment
+* Beginner friendly management
+* No regular backend editing required
+* Clean scalable production-ready code

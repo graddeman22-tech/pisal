@@ -31,22 +31,6 @@ const TEAM = [
     description: "Ensures financial health and sustainable growth, managing resources to fuel PISAL's expansion across India.",
   },
   {
-    name: "Krish",
-    role: "Social Media Manager",
-    initials: "KR",
-    color: "from-green-600 to-emerald-700",
-    photo: `${import.meta.env.BASE_URL}images/krish.png`,
-    description: "Crafts engaging content and builds the PISAL community online, making spice culture exciting for a new generation.",
-  },
-  {
-    name: "Ananya",
-    role: "System Management",
-    initials: "AN",
-    color: "from-teal-600 to-cyan-700",
-    photo: `${import.meta.env.BASE_URL}images/ananya.png`,
-    description: "Keeps our digital backbone running smoothly, ensuring every order and operation flows without a hitch.",
-  },
-  {
     name: "Salander",
     role: "Marketing Management",
     initials: "SA",

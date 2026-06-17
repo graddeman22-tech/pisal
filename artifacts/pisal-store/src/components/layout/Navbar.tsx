@@ -7,27 +7,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQueryClient } from "@tanstack/react-query";
 
-const LOGO_COLORS = [
-  "#FF0000", "#FF4500", "#FF8C00", "#FFD700", "#ADFF2F",
-  "#00FF7F", "#00FFFF", "#00BFFF", "#1E90FF", "#8A2BE2",
-  "#FF00FF", "#FF1493", "#FF6347", "#7FFF00", "#00FA9A",
-  "#FF69B4", "#FFA500", "#DA70D6", "#40E0D0", "#EE82EE",
-  "#F0E68C", "#00CED1", "#DC143C", "#98FF98", "#FF4081",
-  "#69D2E7", "#F9A825", "#E91E63", "#76FF03", "#EA80FC",
-];
-
 export function Navbar() {
   const [location] = useLocation();
   const { user, setAuthModalOpen, logout, setCartDrawerOpen } = useAppStore();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [colorIdx, setColorIdx] = useState(0);
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const t = setInterval(() => setColorIdx(i => (i + 1) % LOGO_COLORS.length), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 10);
@@ -57,17 +42,12 @@ export function Navbar() {
           </button>
 
           <Link href="/" className="flex items-center gap-2 relative z-10">
-            <span className="font-serif text-2xl font-black tracking-widest flex">
-              {"PISAL".split("").map((letter, i) => (
-                <motion.span
-                  key={i}
-                  animate={{ color: LOGO_COLORS[(colorIdx + i * 5) % LOGO_COLORS.length] }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {letter}
-                </motion.span>
-              ))}
-            </span>
+            <img
+              src={`${import.meta.env.BASE_URL}pisal-logo.jpg`}
+              alt="PISAL"
+              className="h-10 w-10 rounded-full object-cover shadow-sm"
+            />
+            <span className="font-serif text-xl font-black text-foreground tracking-wide hidden sm:inline">PISAL</span>
           </Link>
 
           <nav className="hidden lg:flex items-center gap-8">
@@ -162,13 +142,14 @@ export function Navbar() {
               className="fixed inset-y-0 left-0 w-[80vw] max-w-sm bg-card shadow-2xl z-[70] p-6 flex flex-col overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-8">
-                <span className="font-serif text-xl font-black tracking-widest flex">
-                  {"PISAL".split("").map((letter, i) => (
-                    <motion.span key={i} animate={{ color: LOGO_COLORS[(colorIdx + i * 5) % LOGO_COLORS.length] }} transition={{ duration: 0.3 }}>
-                      {letter}
-                    </motion.span>
-                  ))}
-                </span>
+                <div className="flex items-center gap-2">
+                  <img
+                    src={`${import.meta.env.BASE_URL}pisal-logo.jpg`}
+                    alt="PISAL"
+                    className="h-9 w-9 rounded-full object-cover shadow-sm"
+                  />
+                  <span className="font-serif text-lg font-black text-foreground tracking-wide">PISAL</span>
+                </div>
                 <button onClick={() => setMobileMenuOpen(false)} className="p-1"><X className="w-6 h-6" /></button>
               </div>
 

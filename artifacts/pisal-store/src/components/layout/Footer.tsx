@@ -34,9 +34,16 @@ export function Footer() {
 
           {/* ── Brand (takes 2 cols on lg) ────────────── */}
           <div className="lg:col-span-2 space-y-5">
-            <div>
-              <p className="font-serif text-3xl font-bold text-white tracking-wide">PISAL</p>
-              <p className="text-accent text-xs font-semibold tracking-widest uppercase mt-1">Pure Taste of India</p>
+            <div className="flex items-center gap-3">
+              <img
+                src="/pisal-logo.jpg"
+                alt="PISAL"
+                className="h-14 w-14 rounded-full object-cover shadow-lg border-2 border-white/20"
+              />
+              <div>
+                <p className="font-serif text-2xl font-bold text-white tracking-wide">PISAL</p>
+                <p className="text-accent text-xs font-semibold tracking-widest uppercase">Pure Taste of India</p>
+              </div>
             </div>
             <p className="text-white/50 text-sm leading-relaxed max-w-xs">
               Premium, 100% natural Indian spices and FMCG products — sourced directly from farmers and delivered fresh to your kitchen.
