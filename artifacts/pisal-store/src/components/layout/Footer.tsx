@@ -40,7 +40,7 @@ export function Footer() {
               <img
                 src={logoUrl}
                 alt="PISAL"
-                className="h-14 w-14 rounded-full object-cover shadow-lg border-2 border-white/20"
+                className="h-16 w-16 rounded-full object-contain bg-black shadow-xl border border-amber-700/40"
               />
               <div>
                 <p className="font-serif text-2xl font-bold text-white tracking-wide">PISAL</p>

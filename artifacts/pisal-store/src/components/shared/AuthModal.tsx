@@ -113,7 +113,7 @@ export function AuthModal() {
     <Dialog open={isAuthModalOpen} onOpenChange={setAuthModalOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="flex flex-col items-center gap-2 pb-2">
-          <img src={logoUrl} alt="PISAL" className="w-16 h-16 rounded-full object-cover shadow-md border-2 border-primary/20" />
+          <img src={logoUrl} alt="PISAL" className="w-20 h-20 rounded-full object-contain bg-black shadow-lg border border-amber-700/40" />
           <DialogTitle className="text-center text-xl font-bold">Welcome to PISAL</DialogTitle>
           <p className="text-xs text-muted-foreground text-center -mt-1">Pure Taste of India</p>
         </DialogHeader>
