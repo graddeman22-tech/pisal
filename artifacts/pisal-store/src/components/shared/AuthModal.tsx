@@ -8,10 +8,12 @@ import { useAppStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, User, Phone, Eye, EyeOff } from "lucide-react";
+import { useLogo } from "@/hooks/useLogo";
 
 export function AuthModal() {
   const { isAuthModalOpen, setAuthModalOpen, setUser, setToken, setSession } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
+  const logoUrl = useLogo();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '', phone: '', password: '', name: '', confirmPassword: ''
@@ -110,8 +112,10 @@ export function AuthModal() {
   return (
     <Dialog open={isAuthModalOpen} onOpenChange={setAuthModalOpen}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+        <DialogHeader className="flex flex-col items-center gap-2 pb-2">
+          <img src={logoUrl} alt="PISAL" className="w-16 h-16 rounded-full object-cover shadow-md border-2 border-primary/20" />
           <DialogTitle className="text-center text-xl font-bold">Welcome to PISAL</DialogTitle>
+          <p className="text-xs text-muted-foreground text-center -mt-1">Pure Taste of India</p>
         </DialogHeader>
         <Tabs defaultValue="email" className="w-full">
           <TabsList className="grid w-full grid-cols-2">

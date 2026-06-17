@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { Facebook, Instagram, Youtube, Mail, Phone, MapPin } from "lucide-react";
+import { useLogo } from "@/hooks/useLogo";
 
 const PHONES = [
   { number: "8953148406", display: "+91 89531 48406" },
@@ -17,6 +18,7 @@ const WhatsAppIcon = () => (
 );
 
 export function Footer() {
+  const logoUrl = useLogo();
   return (
     <footer className="bg-[#0A0A0A] text-white/70 relative overflow-hidden">
 
@@ -36,7 +38,7 @@ export function Footer() {
           <div className="lg:col-span-2 space-y-5">
             <div className="flex items-center gap-3">
               <img
-                src="/pisal-logo.jpg"
+                src={logoUrl}
                 alt="PISAL"
                 className="h-14 w-14 rounded-full object-cover shadow-lg border-2 border-white/20"
               />

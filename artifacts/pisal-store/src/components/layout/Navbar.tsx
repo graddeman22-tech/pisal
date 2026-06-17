@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLogo } from "@/hooks/useLogo";
 
 export function Navbar() {
   const [location] = useLocation();
@@ -13,6 +14,7 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const queryClient = useQueryClient();
+  const logoUrl = useLogo();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 10);
@@ -43,7 +45,7 @@ export function Navbar() {
 
           <Link href="/" className="flex items-center gap-2 relative z-10">
             <img
-              src={`${import.meta.env.BASE_URL}pisal-logo.jpg`}
+              src={logoUrl}
               alt="PISAL"
               className="h-10 w-10 rounded-full object-cover shadow-sm"
             />
@@ -144,7 +146,7 @@ export function Navbar() {
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2">
                   <img
-                    src={`${import.meta.env.BASE_URL}pisal-logo.jpg`}
+                    src={logoUrl}
                     alt="PISAL"
                     className="h-9 w-9 rounded-full object-cover shadow-sm"
                   />

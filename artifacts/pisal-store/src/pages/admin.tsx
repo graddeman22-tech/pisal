@@ -3,11 +3,13 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { SAMPLE_PRODUCTS } from "@/lib/sample-products";
 import {
-  Package, TrendingUp, Users, ShoppingCart, Plus, Trash2,
+  Package, TrendingUp, ShoppingCart, Plus, Trash2,
   Upload, Image as ImageIcon, Tag, BarChart3,
   CheckCircle, XCircle, Clock, Truck, Star, AlertTriangle, RefreshCw,
+  CreditCard, Settings, Eye, EyeOff, Globe, ToggleLeft, ToggleRight, Camera,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { saveLogo, resetLogo } from "@/hooks/useLogo";
 
 const SPICE_CATS = [
   { id: "whole-spices", name: "Whole Spices" },
@@ -62,12 +64,25 @@ function StatCard({ label, value, icon: Icon, color, sub }: any) {
 export default function AdminDashboard() {
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+  const logoFileRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<"products" | "orders" | "coupons" | "stats">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "orders" | "coupons" | "stats" | "logo" | "payment">("products");
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [currentLogo, setCurrentLogo] = useState<string>(() => localStorage.getItem("pisal_logo") || "/pisal-logo.jpg");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [savingLogo, setSavingLogo] = useState(false);
+
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string>(() => localStorage.getItem("pisal_rzp_key_id") || "");
+  const [razorpaySecret, setRazorpaySecret] = useState<string>(() => localStorage.getItem("pisal_rzp_secret") || "");
+  const [razorpayEnabled, setRazorpayEnabled] = useState<boolean>(() => localStorage.getItem("pisal_rzp_enabled") === "true");
+  const [razorpayMode, setRazorpayMode] = useState<"test" | "live">(() => (localStorage.getItem("pisal_rzp_mode") as "test" | "live") || "test");
+  const [showSecret, setShowSecret] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
 
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -259,6 +274,52 @@ export default function AdminDashboard() {
   const addWeightOption = () => setWeightOptions(prev => [...prev, { weight: "100g", price: "", in_stock: true }]);
   const removeWeightOption = (i: number) => setWeightOptions(prev => prev.filter((_, idx) => idx !== i));
 
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast({ title: "Logo must be under 2MB", variant: "destructive" }); return; }
+    setLogoFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveLogo = async () => {
+    if (!logoFile && !logoPreview) { toast({ title: "Please select a logo image", variant: "destructive" }); return; }
+    setSavingLogo(true);
+    try {
+      const dataUrl = logoPreview!;
+      saveLogo(dataUrl);
+      setCurrentLogo(dataUrl);
+      setLogoFile(null);
+      setLogoPreview(null);
+      toast({ title: "Logo updated!", description: "Your new logo is now live across the entire website." });
+    } finally {
+      setSavingLogo(false);
+    }
+  };
+
+  const handleResetLogo = () => {
+    resetLogo();
+    setCurrentLogo("/pisal-logo.jpg");
+    setLogoFile(null);
+    setLogoPreview(null);
+    toast({ title: "Logo reset to default" });
+  };
+
+  const handleSavePayment = () => {
+    setSavingPayment(true);
+    try {
+      localStorage.setItem("pisal_rzp_key_id", razorpayKeyId);
+      localStorage.setItem("pisal_rzp_secret", razorpaySecret);
+      localStorage.setItem("pisal_rzp_enabled", String(razorpayEnabled));
+      localStorage.setItem("pisal_rzp_mode", razorpayMode);
+      toast({ title: "Payment settings saved!", description: "Razorpay keys are securely stored." });
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
   const handleAddCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingCoupon(true);
@@ -294,6 +355,8 @@ export default function AdminDashboard() {
     { id: "orders", label: "Orders", icon: ShoppingCart },
     { id: "coupons", label: "Coupons", icon: Tag },
     { id: "stats", label: "Analytics", icon: BarChart3 },
+    { id: "logo", label: "Logo", icon: Camera },
+    { id: "payment", label: "Payments", icon: CreditCard },
   ] as const;
 
   return (
@@ -716,6 +779,179 @@ export default function AdminDashboard() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* LOGO MANAGEMENT TAB */}
+        {activeTab === "logo" && (
+          <div className="space-y-6 max-w-2xl">
+            <h2 className="text-xl font-bold text-gray-900">Logo Management</h2>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6">
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-4">Current Logo</p>
+                <div className="flex items-center gap-5">
+                  <img src={currentLogo} alt="Current Logo" className="w-24 h-24 rounded-2xl object-cover border-2 border-gray-200 shadow-sm" />
+                  <div>
+                    <p className="text-sm text-gray-600">This logo appears in the Navbar, Footer, Login popup, Mobile menu, and all key pages.</p>
+                    <p className="text-xs text-gray-400 mt-1">Update it below to instantly refresh across the entire website.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-3">Upload New Logo</p>
+                <div
+                  onClick={() => logoFileRef.current?.click()}
+                  className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#8B0000] hover:bg-red-50 transition-all"
+                >
+                  {logoPreview ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <img src={logoPreview} alt="Preview" className="w-28 h-28 object-cover rounded-2xl shadow-md" />
+                      <p className="text-sm text-[#8B0000] font-medium">Click to change</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-700">Tap to upload new logo</p>
+                        <p className="text-sm text-gray-400">JPG, PNG, WebP · Max 2MB</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoFileChange} className="hidden" />
+              </div>
+
+              <div className="flex gap-3 flex-wrap">
+                <button
+                  onClick={handleSaveLogo}
+                  disabled={savingLogo || !logoPreview}
+                  className="flex items-center gap-2 bg-gradient-to-r from-[#8B0000] to-[#6b0000] text-white font-bold px-6 py-3 rounded-xl hover:from-[#6b0000] hover:to-[#4a0000] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                >
+                  {savingLogo ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving...</> : <><Upload className="w-4 h-4" /> Save Logo</>}
+                </button>
+                <button
+                  onClick={handleResetLogo}
+                  className="flex items-center gap-2 text-gray-600 border border-gray-200 font-medium px-6 py-3 rounded-xl hover:bg-gray-50 transition-all"
+                >
+                  <Globe className="w-4 h-4" /> Reset to Default
+                </button>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-sm text-amber-700 font-semibold">📌 How it works</p>
+                <ul className="text-xs text-amber-600 mt-1.5 space-y-1">
+                  <li>• Upload any image from your phone/gallery</li>
+                  <li>• Click "Save Logo" — it instantly updates everywhere</li>
+                  <li>• Logo appears in: Navbar, Footer, Login popup, Mobile menu</li>
+                  <li>• Use "Reset to Default" to go back to the original tree logo</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PAYMENT SETTINGS TAB */}
+        {activeTab === "payment" && (
+          <div className="space-y-6 max-w-2xl">
+            <h2 className="text-xl font-bold text-gray-900">Payment Settings</h2>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <div>
+                  <p className="font-semibold text-gray-800">Razorpay Payments</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Enable online card/UPI payments</p>
+                </div>
+                <button
+                  onClick={() => setRazorpayEnabled(e => !e)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${razorpayEnabled ? "bg-green-100 text-green-700 border border-green-300" : "bg-gray-100 text-gray-500 border border-gray-200"}`}
+                >
+                  {razorpayEnabled ? <><ToggleRight className="w-5 h-5" /> Enabled</> : <><ToggleLeft className="w-5 h-5" /> Disabled</>}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700">Mode:</p>
+                <div className="flex gap-2">
+                  {(["test", "live"] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setRazorpayMode(mode)}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all capitalize ${razorpayMode === mode ? (mode === "live" ? "bg-green-600 text-white border-green-600" : "bg-blue-600 text-white border-blue-600") : "bg-white text-gray-500 border-gray-200"}`}
+                    >
+                      {mode === "test" ? "🧪 Test Mode" : "🚀 Live Mode"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {razorpayMode === "test" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <p className="text-xs text-blue-700">🧪 <strong>Test Mode:</strong> Use Razorpay test keys. No real money is charged. Test card: 4111 1111 1111 1111</p>
+                </div>
+              )}
+              {razorpayMode === "live" && (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl p-3">
+                  <p className="text-xs text-amber-700">🚀 <strong>Live Mode:</strong> Real money will be charged. Use your production Razorpay keys from the Razorpay Dashboard.</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                    <Settings className="w-4 h-4 text-gray-400" /> Razorpay Key ID
+                  </label>
+                  <input
+                    type="text"
+                    value={razorpayKeyId}
+                    onChange={e => setRazorpayKeyId(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-200 focus:border-[#8B0000] outline-none font-mono text-sm"
+                    placeholder={razorpayMode === "test" ? "rzp_test_xxxxxxxxxxxx" : "rzp_live_xxxxxxxxxxxx"}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">This key is safe to expose to the frontend</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                    <Settings className="w-4 h-4 text-gray-400" /> Razorpay Secret Key
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showSecret ? "text" : "password"}
+                      value={razorpaySecret}
+                      onChange={e => setRazorpaySecret(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-200 focus:border-[#8B0000] outline-none font-mono text-sm pr-12"
+                      placeholder="••••••••••••••••••••"
+                    />
+                    <button type="button" onClick={() => setShowSecret(s => !s)} className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600">
+                      {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-red-500 mt-1">⚠️ Keep this secret. For production, move to a backend/.env file.</p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleSavePayment}
+                disabled={savingPayment}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#8B0000] to-[#6b0000] text-white font-bold py-3.5 rounded-xl hover:from-[#6b0000] hover:to-[#4a0000] transition-all shadow-lg disabled:opacity-60"
+              >
+                {savingPayment ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving...</> : <><CreditCard className="w-4 h-4" /> Save Payment Settings</>}
+              </button>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+                <p className="text-sm font-semibold text-gray-700">📋 Where to get your Razorpay keys:</p>
+                <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
+                  <li>Go to <strong>razorpay.com</strong> → Sign Up / Login</li>
+                  <li>Dashboard → Settings → API Keys</li>
+                  <li>Generate Key ID + Key Secret</li>
+                  <li>Paste them above and click Save</li>
+                </ol>
+              </div>
+            </div>
           </div>
         )}
 

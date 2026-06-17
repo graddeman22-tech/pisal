@@ -177,4 +177,130 @@ export const apiClient = {
     if (error) throw error;
     return data;
   },
+
+  addAddress: async (userId: string, addressData: any) => {
+    const payload = { ...addressData, user_id: userId };
+    try {
+      if (!await isSupabaseAvailable()) {
+        const stored = JSON.parse(localStorage.getItem('pisal_addresses') || '[]');
+        const newAddr = { ...payload, id: Date.now().toString() };
+        stored.push(newAddr);
+        localStorage.setItem('pisal_addresses', JSON.stringify(stored));
+        return newAddr;
+      }
+      const { data, error } = await supabase.from('addresses').insert([payload]).select().single();
+      if (error) throw error;
+      return data;
+    } catch {
+      const stored = JSON.parse(localStorage.getItem('pisal_addresses') || '[]');
+      const newAddr = { ...payload, id: Date.now().toString() };
+      stored.push(newAddr);
+      localStorage.setItem('pisal_addresses', JSON.stringify(stored));
+      return newAddr;
+    }
+  },
+
+  getUserProfile: async (userId: string) => {
+    try {
+      if (!await isSupabaseAvailable()) {
+        const profile = JSON.parse(localStorage.getItem(`pisal_profile_${userId}`) || 'null');
+        const { data: { user } } = await supabase.auth.getUser();
+        return profile || {
+          id: userId,
+          name: user?.user_metadata?.name || '',
+          email: user?.email || '',
+          phone: user?.phone || '',
+          totalOrders: 0,
+          loyaltyPoints: 0,
+          totalSpent: 0,
+        };
+      }
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (error || !data) {
+        const { data: { user } } = await supabase.auth.getUser();
+        return {
+          id: userId,
+          name: user?.user_metadata?.name || '',
+          email: user?.email || '',
+          phone: user?.phone || '',
+          totalOrders: 0,
+          loyaltyPoints: 0,
+          totalSpent: 0,
+        };
+      }
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  updateUserProfile: async (userId: string, updates: any) => {
+    try {
+      const payload = updates?.data || updates;
+      if (!await isSupabaseAvailable()) {
+        const existing = JSON.parse(localStorage.getItem(`pisal_profile_${userId}`) || '{}');
+        const updated = { ...existing, ...payload, id: userId };
+        localStorage.setItem(`pisal_profile_${userId}`, JSON.stringify(updated));
+        return updated;
+      }
+      const { data, error } = await supabase.from('profiles').upsert({ id: userId, ...payload }).select().single();
+      if (error) throw error;
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  getCartLocal: (userId: string) => {
+    try {
+      return JSON.parse(localStorage.getItem(`pisal_cart_${userId}`) || '[]');
+    } catch { return []; }
+  },
+
+  addToCartLocal: (userId: string, item: any) => {
+    try {
+      const cart = JSON.parse(localStorage.getItem(`pisal_cart_${userId}`) || '[]');
+      const existing = cart.find((c: any) => c.product_id === item.product_id);
+      if (existing) {
+        existing.quantity = (existing.quantity || 1) + (item.quantity || 1);
+      } else {
+        cart.push({ ...item, id: Date.now().toString(), user_id: userId });
+      }
+      localStorage.setItem(`pisal_cart_${userId}`, JSON.stringify(cart));
+      return cart;
+    } catch { return []; }
+  },
+
+  removeFromCartLocal: (userId: string, itemId: string) => {
+    try {
+      const cart = JSON.parse(localStorage.getItem(`pisal_cart_${userId}`) || '[]');
+      const updated = cart.filter((c: any) => c.id !== itemId);
+      localStorage.setItem(`pisal_cart_${userId}`, JSON.stringify(updated));
+      return updated;
+    } catch { return []; }
+  },
+
+  createOrderWithFallback: async (orderData: any) => {
+    try {
+      if (!await isSupabaseAvailable()) {
+        const order = { ...orderData, id: `local_${Date.now()}`, created_at: new Date().toISOString() };
+        const orders = JSON.parse(localStorage.getItem('pisal_orders') || '[]');
+        orders.unshift(order);
+        localStorage.setItem('pisal_orders', JSON.stringify(orders));
+        if (orderData.user_id) {
+          localStorage.removeItem(`pisal_cart_${orderData.user_id}`);
+        }
+        return order;
+      }
+      const { data, error } = await supabase.from('orders').insert([orderData]).select().single();
+      if (error) throw error;
+      return data;
+    } catch {
+      const order = { ...orderData, id: `local_${Date.now()}`, created_at: new Date().toISOString() };
+      const orders = JSON.parse(localStorage.getItem('pisal_orders') || '[]');
+      orders.unshift(order);
+      localStorage.setItem('pisal_orders', JSON.stringify(orders));
+      return order;
+    }
+  },
 };
