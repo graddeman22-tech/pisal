@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { SAMPLE_PRODUCTS } from './sample-products';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://aafgptxzavrpraehaexa.supabase.co';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gytgnnjxlmvgrltumwwj.supabase.co';
 
 let _supabaseOk: boolean | null = null;
 
