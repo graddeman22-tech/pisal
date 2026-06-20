@@ -47,9 +47,12 @@ export function Navbar() {
             <img
               src={logoUrl}
               alt="PISAL"
-              className="h-11 w-11 rounded-full object-contain bg-black shadow-md border border-amber-700/30"
+              className="h-11 w-11 rounded-full object-cover shadow-md"
             />
-            <span className="font-serif text-lg font-black tracking-wide hidden sm:inline text-black">PISAL</span>
+            <div className="hidden sm:flex flex-col leading-tight">
+              <span className="font-serif text-base font-black tracking-wide text-black">PISAL</span>
+              <span className="text-[10px] font-semibold tracking-widest text-black uppercase">Future Driven</span>
+            </div>
           </Link>
 
           <nav className="hidden lg:flex items-center gap-8">
@@ -148,9 +151,12 @@ export function Navbar() {
                   <img
                     src={logoUrl}
                     alt="PISAL"
-                    className="h-10 w-10 rounded-full object-contain bg-black shadow-md border border-amber-700/30"
+                    className="h-10 w-10 rounded-full object-cover shadow-md"
                   />
-                  <span className="font-serif text-lg font-black tracking-wide text-black">PISAL</span>
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-serif text-base font-black tracking-wide text-black">PISAL</span>
+                    <span className="text-[10px] font-semibold tracking-widest text-black uppercase">Future Driven</span>
+                  </div>
                 </div>
                 <button onClick={() => setMobileMenuOpen(false)} className="p-1"><X className="w-6 h-6" /></button>
               </div>
