@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 const LOGO_KEY = "pisal_logo";
-const DEFAULT_LOGO = "/pisal-logo.png";
+const DEFAULT_LOGO = "/pisal-logo-transparent.png";
 
 export function useLogo(): string {
   const [logoUrl, setLogoUrl] = useState<string>(

@@ -47,7 +47,7 @@ export function Navbar() {
             <img
               src={logoUrl}
               alt="PISAL"
-              className="h-11 w-11 rounded-full object-cover shadow-md"
+              className="h-11 w-11 object-contain"
             />
             <img
               src="/pisal-text-logo.png"
@@ -152,7 +152,7 @@ export function Navbar() {
                   <img
                     src={logoUrl}
                     alt="PISAL"
-                    className="h-10 w-10 rounded-full object-cover shadow-md"
+                    className="h-10 w-10 object-contain"
                   />
                   <img
                     src="/pisal-text-logo.png"

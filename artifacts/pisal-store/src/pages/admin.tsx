@@ -301,7 +301,7 @@ export default function AdminDashboard() {
 
   const handleResetLogo = () => {
     resetLogo();
-    setCurrentLogo("/pisal-logo.png");
+    setCurrentLogo("/pisal-logo-transparent.png");
     setLogoFile(null);
     setLogoPreview(null);
     toast({ title: "Logo reset to default" });
