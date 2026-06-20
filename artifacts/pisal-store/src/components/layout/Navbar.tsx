@@ -50,9 +50,9 @@ export function Navbar() {
               className="h-11 w-11 rounded-full object-cover shadow-md"
             />
             <img
-              src="/pisal-text-logo.jpg"
+              src="/pisal-text-logo.png"
               alt="PISAL Future Driven"
-              className="hidden sm:block h-8 w-auto object-contain"
+              className="hidden sm:block h-9 w-auto object-contain"
             />
           </Link>
 
@@ -155,9 +155,9 @@ export function Navbar() {
                     className="h-10 w-10 rounded-full object-cover shadow-md"
                   />
                   <img
-                    src="/pisal-text-logo.jpg"
+                    src="/pisal-text-logo.png"
                     alt="PISAL Future Driven"
-                    className="h-8 w-auto object-contain"
+                    className="h-9 w-auto object-contain"
                   />
                 </div>
                 <button onClick={() => setMobileMenuOpen(false)} className="p-1"><X className="w-6 h-6" /></button>
