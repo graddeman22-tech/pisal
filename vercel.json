@@ -1,7 +1,10 @@
 {
   "version": 2,
+  "buildCommand": "pnpm --filter @workspace/pisal-store run build",
+  "outputDirectory": "artifacts/pisal-store/dist",
+  "installCommand": "pnpm install",
+  "framework": null,
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
