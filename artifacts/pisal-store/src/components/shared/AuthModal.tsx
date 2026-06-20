@@ -92,7 +92,7 @@ export function AuthModal() {
           <img
             src={logoUrl}
             alt="PISAL"
-            className="w-16 h-16 object-contain bg-black rounded-full mx-auto mb-3 shadow-[0_0_16px_4px_rgba(212,175,55,0.35)]"
+            className="w-16 h-16 object-contain bg-black rounded-full mx-auto mb-3 scale-[1.18] shadow-[0_0_16px_4px_rgba(212,175,55,0.35)]"
           />
           <img
             src="/pisal-text-logo.png"
