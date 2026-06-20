@@ -40,7 +40,8 @@ export function Footer() {
               <img
                 src={logoUrl}
                 alt="PISAL"
-                className="h-16 w-16 object-contain bg-black rounded-full scale-[1.18]"
+                className="h-16 w-16 object-contain"
+                style={{ filter: "saturate(1.6) hue-rotate(-8deg) brightness(1.08) drop-shadow(0 0 8px rgba(212,175,55,0.5))" }}
               />
               <div>
                 <p className="font-serif text-2xl font-bold text-white tracking-wide">PISAL</p>

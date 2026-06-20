@@ -44,9 +44,12 @@ export function Navbar() {
           </button>
 
           <Link href="/" className="flex items-center gap-2 relative z-10">
-            <div className="h-11 w-11 rounded-full bg-black overflow-hidden shadow-[0_0_10px_3px_rgba(212,175,55,0.3)] flex-shrink-0">
-              <img src={logoUrl} alt="PISAL" className="w-full h-full object-contain scale-[1.18]" />
-            </div>
+            <img
+              src={logoUrl}
+              alt="PISAL"
+              className="h-12 w-12 object-contain flex-shrink-0 drop-shadow-[0_0_8px_rgba(212,175,55,0.6)]"
+              style={{ filter: "saturate(1.6) hue-rotate(-8deg) brightness(1.08) drop-shadow(0 0 6px rgba(212,175,55,0.5))" }}
+            />
             <img
               src="/pisal-text-logo.png"
               alt="PISAL Future Driven"
@@ -150,7 +153,8 @@ export function Navbar() {
                   <img
                     src={logoUrl}
                     alt="PISAL"
-                    className="h-10 w-10 object-contain bg-black rounded-full scale-[1.18]"
+                    className="h-10 w-10 object-contain"
+                    style={{ filter: "saturate(1.6) hue-rotate(-8deg) brightness(1.08) drop-shadow(0 0 6px rgba(212,175,55,0.5))" }}
                   />
                   <img
                     src="/pisal-text-logo.png"
