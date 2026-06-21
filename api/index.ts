@@ -29,27 +29,34 @@ app.get("/api/healthz", (_req, res) => {
 // ─── Auth ──────────────────────────────────────────────────────────────────
 app.post("/api/auth/send-otp", async (req, res) => {
   try {
-    const { phone } = req.body;
+    // Fix: Ensure phone is a single string
+    const phoneInput = Array.isArray(req.body.phone) ? req.body.phone[0] : req.body.phone;
+    const phone = String(phoneInput || "");
+    
     if (!phone) {
       res.status(400).json({ message: "Phone number required" });
       return;
     }
+    
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    
     const existing = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, String(phone)));
+      .where(eq(usersTable.phone, phone));
+      
     if (existing.length > 0) {
       await db
         .update(usersTable)
         .set({ otp, otpExpiresAt })
-        .where(eq(usersTable.phone, String(phone)));
+        .where(eq(usersTable.phone, phone));
     } else {
       await db
         .insert(usersTable)
-        .values({ phone: String(phone), otp, otpExpiresAt });
+        .values({ phone: phone, otp, otpExpiresAt });
     }
+    
     res.json({ message: "OTP sent successfully", otp });
   } catch (err) {
     console.error(err);
@@ -59,31 +66,43 @@ app.post("/api/auth/send-otp", async (req, res) => {
 
 app.post("/api/auth/verify-otp", async (req, res) => {
   try {
-    const { phone, otp } = req.body;
+    // Fix: Ensure phone and otp are single strings
+    const phoneInput = Array.isArray(req.body.phone) ? req.body.phone[0] : req.body.phone;
+    const otpInput = Array.isArray(req.body.otp) ? req.body.otp[0] : req.body.otp;
+    
+    const phone = String(phoneInput || "");
+    const otp = String(otpInput || "");
+
     if (!phone || !otp) {
       res.status(400).json({ message: "Phone and OTP required" });
       return;
     }
+    
     const users = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, String(phone)));
+      .where(eq(usersTable.phone, phone));
+      
     const user = users[0];
     if (!user) {
       res.status(404).json({ message: "User not found" });
       return;
     }
+    
     const isValid =
       otp === "123456" ||
       (user.otp === otp && user.otpExpiresAt && new Date() < user.otpExpiresAt);
+      
     if (!isValid) {
       res.status(400).json({ message: "Invalid or expired OTP" });
       return;
     }
+    
     await db
       .update(usersTable)
       .set({ otp: null, otpExpiresAt: null })
       .where(eq(usersTable.id, user.id));
+      
     const token = makeToken(user.id);
     res.json({
       user: {
