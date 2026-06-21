@@ -14,7 +14,7 @@ import {
   reviewsTable,
   addressesTable,
 } from "./_schema.js";
-import { eq, ilike, gte, lte, and, desc, sql } from "drizzle-orm";
+import { eq, ilike, gte, lte, and, desc, asc, sql } from "drizzle-orm";
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -29,7 +29,6 @@ app.get("/api/healthz", (_req, res) => {
 // ─── Auth ──────────────────────────────────────────────────────────────────
 app.post("/api/auth/send-otp", async (req, res) => {
   try {
-    // Fix: Ensure phone is a single string
     const phoneInput = Array.isArray(req.body.phone) ? req.body.phone[0] : req.body.phone;
     const phone = String(phoneInput || "");
     
@@ -66,7 +65,6 @@ app.post("/api/auth/send-otp", async (req, res) => {
 
 app.post("/api/auth/verify-otp", async (req, res) => {
   try {
-    // Fix: Ensure phone and otp are single strings
     const phoneInput = Array.isArray(req.body.phone) ? req.body.phone[0] : req.body.phone;
     const otpInput = Array.isArray(req.body.otp) ? req.body.otp[0] : req.body.otp;
     
@@ -138,32 +136,30 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
   });
 });
 
-// ─── Categories ─────────────────────────────────────────────────────────────
+// ─── Categories (FIXED: Single Join Query instead of Loop) ───────────────────
 app.get("/api/categories", async (_req, res) => {
   try {
-    const cats = await db.select().from(categoriesTable);
-    const result = [];
-    for (const cat of cats) {
-      const [count] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(productsTable)
-        .where(eq(productsTable.categoryId, cat.id));
-      result.push({
-        id: cat.id,
-        name: cat.name,
-        slug: cat.slug,
-        description: cat.description,
-        imageUrl: cat.imageUrl,
-        productCount: Number(count.count),
-      });
-    }
-    res.json(result);
+    const catsWithCount = await db
+      .select({
+        id: categoriesTable.id,
+        name: categoriesTable.name,
+        slug: categoriesTable.slug,
+        description: categoriesTable.description,
+        imageUrl: categoriesTable.imageUrl,
+        productCount: sql<number>`count(${productsTable.id})`,
+      })
+      .from(categoriesTable)
+      .leftJoin(productsTable, eq(productsTable.categoryId, categoriesTable.id))
+      .groupBy(categoriesTable.id);
+
+    res.json(catsWithCount);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to list categories" });
   }
 });
 
-// ─── Products ───────────────────────────────────────────────────────────────
+// ─── Products Helper ─────────────────────────────────────────────────────────
 function formatProduct(p: any, cat?: any) {
   const discount =
     p.originalPrice && p.originalPrice > p.price
@@ -194,6 +190,7 @@ function formatProduct(p: any, cat?: any) {
   };
 }
 
+// ─── Products (FIXED: Database Level Pagination and Sorting) ─────────────────
 app.get("/api/products", async (req, res) => {
   try {
     const query = req.query as any;
@@ -205,45 +202,45 @@ app.get("/api/products", async (req, res) => {
     const page = query.page ? (query.page as string) : "1";
     const limit = query.limit ? (query.limit as string) : "12";
 
-    const pageNum = parseInt(page),
-      limitNum = parseInt(limit);
+    const pageNum = parseInt(page), limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
     const conditions: any[] = [];
+
     if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
-    if (minPrice)
-      conditions.push(gte(productsTable.price, parseFloat(minPrice)));
-    if (maxPrice)
-      conditions.push(lte(productsTable.price, parseFloat(maxPrice)));
+    if (minPrice) conditions.push(gte(productsTable.price, parseFloat(minPrice)));
+    if (maxPrice) conditions.push(lte(productsTable.price, parseFloat(maxPrice)));
     if (category) conditions.push(eq(categoriesTable.slug, category));
-    const whereCondition =
-      conditions.length > 0 ? and(...conditions) : undefined;
-    const all = await db
+    
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Handle Order By
+    let orderByCondition = desc(productsTable.id);
+    if (sort === "price_asc") orderByCondition = asc(productsTable.price);
+    else if (sort === "price_desc") orderByCondition = desc(productsTable.price);
+    else if (sort === "newest") orderByCondition = desc(productsTable.createdAt);
+
+    // Fetch Total Count
+    const [totalRes] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(productsTable)
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .where(whereCondition);
+
+    // Fetch Paginated Products
+    const data = await db
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
-      .leftJoin(
-        categoriesTable,
-        eq(productsTable.categoryId, categoriesTable.id),
-      )
-      .where(whereCondition);
-    let sorted = [...all];
-    if (sort === "price_asc")
-      sorted.sort((a, b) => Number(a.product.price) - Number(b.product.price));
-    else if (sort === "price_desc")
-      sorted.sort((a, b) => Number(b.product.price) - Number(a.product.price));
-    else if (sort === "newest")
-      sorted.sort(
-        (a, b) =>
-          new Date(b.product.createdAt).getTime() -
-          new Date(a.product.createdAt).getTime(),
-      );
-    const paginated = sorted.slice(offset, offset + limitNum);
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .where(whereCondition)
+      .orderBy(orderByCondition)
+      .limit(limitNum)
+      .offset(offset);
+
     res.json({
-      products: paginated.map(({ product, category }) =>
-        formatProduct(product, category),
-      ),
-      total: all.length,
+      products: data.map(({ product, category }) => formatProduct(product, category)),
+      total: Number(totalRes.count),
       page: pageNum,
-      totalPages: Math.ceil(all.length / limitNum),
+      totalPages: Math.ceil(Number(totalRes.count) / limitNum),
     });
   } catch (err) {
     console.error(err);
@@ -257,10 +254,7 @@ app.get("/api/products/:id", async (req, res) => {
     const results = await db
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
-      .leftJoin(
-        categoriesTable,
-        eq(productsTable.categoryId, categoriesTable.id),
-      )
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
       .where(eq(productsTable.id, id));
     if (!results.length) {
       res.status(404).json({ message: "Product not found" });
@@ -270,10 +264,7 @@ app.get("/api/products/:id", async (req, res) => {
     const related = await db
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
-      .leftJoin(
-        categoriesTable,
-        eq(productsTable.categoryId, categoriesTable.id),
-      )
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
       .where(
         and(
           eq(productsTable.categoryId, product.categoryId || 0),
@@ -430,10 +421,7 @@ app.get("/api/wishlist", requireAuth, async (req, res) => {
       })
       .from(wishlistTable)
       .leftJoin(productsTable, eq(wishlistTable.productId, productsTable.id))
-      .leftJoin(
-        categoriesTable,
-        eq(productsTable.categoryId, categoriesTable.id),
-      )
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
       .where(eq(wishlistTable.userId, user.id));
     res.json(
       items.map(({ wishlist, product, category }) => ({
@@ -455,12 +443,7 @@ app.post("/api/wishlist/:productId", requireAuth, async (req, res) => {
     const existing = await db
       .select()
       .from(wishlistTable)
-      .where(
-        and(
-          eq(wishlistTable.userId, user.id),
-          eq(wishlistTable.productId, productId),
-        ),
-      );
+      .where(and(eq(wishlistTable.userId, user.id), eq(wishlistTable.productId, productId)));
     if (!existing.length)
       await db.insert(wishlistTable).values({ userId: user.id, productId });
     res.json({ message: "Added to wishlist" });
@@ -527,12 +510,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     const addresses = await db
       .select()
       .from(addressesTable)
-      .where(
-        and(
-          eq(addressesTable.id, Number(addressId)),
-          eq(addressesTable.userId, user.id),
-        ),
-      );
+      .where(and(eq(addressesTable.id, Number(addressId)), eq(addressesTable.userId, user.id)));
     if (!addresses.length) {
       res.status(404).json({ message: "Address not found" });
       return;
@@ -571,8 +549,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       if (coupon && coupon.isActive) {
         if (coupon.discountType === "percent") {
           discount = (subtotal * coupon.discountValue) / 100;
-          if (coupon.maxDiscount)
-            discount = Math.min(discount, coupon.maxDiscount);
+          if (coupon.maxDiscount) discount = Math.min(discount, coupon.maxDiscount);
         } else {
           discount = coupon.discountValue;
         }
@@ -645,12 +622,7 @@ app.get("/api/orders/:id", requireAuth, async (req, res) => {
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(
-        and(
-          eq(ordersTable.id, parseInt(req.params.id as string)),
-          eq(ordersTable.userId, user.id),
-        ),
-      );
+      .where(and(eq(ordersTable.id, parseInt(req.params.id as string)), eq(ordersTable.userId, user.id)));
     if (!orders.length) {
       res.status(404).json({ message: "Order not found" });
       return;
@@ -697,8 +669,7 @@ app.post("/api/coupons/validate", async (req, res) => {
     let discountAmount = 0;
     if (coupon.discountType === "percent") {
       discountAmount = (orderTotal * coupon.discountValue) / 100;
-      if (coupon.maxDiscount)
-        discountAmount = Math.min(discountAmount, coupon.maxDiscount);
+      if (coupon.maxDiscount) discountAmount = Math.min(discountAmount, coupon.maxDiscount);
     } else {
       discountAmount = coupon.discountValue;
     }
@@ -855,8 +826,7 @@ app.get("/api/users/addresses", requireAuth, async (req, res) => {
 app.post("/api/users/addresses", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
-    const { name, phone, line1, line2, city, state, pincode, isDefault } =
-      req.body;
+    const { name, phone, line1, line2, city, state, pincode, isDefault } = req.body;
     if (isDefault)
       await db
         .update(addressesTable)
@@ -892,7 +862,7 @@ app.post("/api/users/addresses", requireAuth, async (req, res) => {
   }
 });
 
-// ─── Admin ────────────────────────────────────────────────────────────────────
+// ─── Admin Dashboard ─────────────────────────────────────────────────────────
 app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
   try {
     const orders = await db.select().from(ordersTable);
@@ -912,10 +882,8 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const allProducts = await db
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
-      .leftJoin(
-        categoriesTable,
-        eq(productsTable.categoryId, categoriesTable.id),
-      );
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id));
+      
     const fmt = (p: any, c: any) => ({
       id: p.id,
       name: p.name,
@@ -925,10 +893,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
       categoryName: c?.name || "",
       price: p.price,
       originalPrice: p.originalPrice,
-      discount:
-        p.originalPrice && p.originalPrice > p.price
-          ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
-          : 0,
+      discount: p.originalPrice && p.originalPrice > p.price ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100) : 0,
       imageUrl: p.imageUrl,
       images: p.images || [],
       inStock: p.inStock,
@@ -945,23 +910,10 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
       totalCustomers: Number(customerCount),
       totalProducts: Number(productCount),
       dailyOrders: orders.filter((o) => new Date(o.createdAt) >= today).length,
-      monthlyRevenue: orders
-        .filter((o) => new Date(o.createdAt) >= monthStart)
-        .reduce((s, o) => s + Number(o.total), 0),
-      bestSellingProducts: allProducts
-        .filter(({ product }) => product.isBestseller)
-        .slice(0, 5)
-        .map(({ product, category }) => fmt(product, category)),
-      lowStockProducts: allProducts
-        .filter(({ product }) => product.stockQuantity <= 10)
-        .map(({ product, category }) => fmt(product, category)),
-      recentOrders: [...orders]
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        )
-        .slice(0, 5)
-        .map(formatOrder),
+      monthlyRevenue: orders.filter((o) => new Date(o.createdAt) >= monthStart).reduce((s, o) => s + Number(o.total), 0),
+      bestSellingProducts: allProducts.filter(({ product }) => product.isBestseller).slice(0, 5).map(({ product, category }) => fmt(product, category)),
+      lowStockProducts: allProducts.filter(({ product }) => product.stockQuantity <= 10).map(({ product, category }) => fmt(product, category)),
+      recentOrders: [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5).map(formatOrder),
     });
   } catch (err) {
     console.error(err);
@@ -971,47 +923,11 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
 
 app.post("/api/admin/products", requireAdmin, async (req, res) => {
   try {
-    const {
-      name,
-      description,
-      categoryId,
-      price,
-      originalPrice,
-      imageUrl,
-      images,
-      inStock,
-      stockQuantity,
-      isFeatured,
-      isBestseller,
-      ingredients,
-      benefits,
-      tags,
-      weightOptions,
-    } = req.body;
-    const slug = name
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
+    const { name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions } = req.body;
+    const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     const [product] = await db
       .insert(productsTable)
-      .values({
-        name,
-        description,
-        categoryId,
-        price,
-        originalPrice,
-        imageUrl,
-        images,
-        inStock: inStock ?? true,
-        stockQuantity: stockQuantity ?? 100,
-        isFeatured: isFeatured ?? false,
-        isBestseller: isBestseller ?? false,
-        ingredients,
-        benefits,
-        tags,
-        weightOptions,
-        slug,
-      })
+      .values({ name, description, categoryId, price, originalPrice, imageUrl, images, inStock: inStock ?? true, stockQuantity: stockQuantity ?? 100, isFeatured: isFeatured ?? false, isBestseller: isBestseller ?? false, ingredients, benefits, tags, weightOptions, slug })
       .returning();
     res.status(201).json(formatProduct(product));
   } catch (err) {
@@ -1022,47 +938,11 @@ app.post("/api/admin/products", requireAdmin, async (req, res) => {
 app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
   try {
     const id = parseInt(req.params.id as string);
-    const {
-      name,
-      description,
-      categoryId,
-      price,
-      originalPrice,
-      imageUrl,
-      images,
-      inStock,
-      stockQuantity,
-      isFeatured,
-      isBestseller,
-      ingredients,
-      benefits,
-      tags,
-      weightOptions,
-    } = req.body;
-    const slug = name
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
+    const { name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions } = req.body;
+    const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     const [product] = await db
       .update(productsTable)
-      .set({
-        name,
-        description,
-        categoryId,
-        price,
-        originalPrice,
-        imageUrl,
-        images,
-        inStock,
-        stockQuantity,
-        isFeatured,
-        isBestseller,
-        ingredients,
-        benefits,
-        tags,
-        weightOptions,
-        slug,
-      })
+      .set({ name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions, slug })
       .where(eq(productsTable.id, id))
       .returning();
     res.json(formatProduct(product));
@@ -1073,56 +953,52 @@ app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
 
 app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
   try {
-    await db
-      .delete(productsTable)
-      .where(eq(productsTable.id, parseInt(req.params.id as string)));
+    await db.delete(productsTable).where(eq(productsTable.id, parseInt(req.params.id as string)));
     res.json({ message: "Product deleted" });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete product" });
   }
 });
 
+// ─── Admin Orders (FIXED & COMPLETED: Fully Functional Route) ────────────────
 app.get("/api/admin/orders", requireAdmin, async (req, res) => {
   try {
     const query = req.query as any;
     const status = query.status ? (query.status as string) : undefined;
     const page = query.page ? (query.page as string) : "1";
-    const pageNum = parseInt(page),
-      limitNum = 20,
-      offset = (pageNum - 1) * limitNum;
-    let orders = await db
+    
+    const pageNum = parseInt(page);
+    const limitNum = 20;
+    const offset = (pageNum - 1) * limitNum;
+    
+    const conditions = [];
+    if (status) conditions.push(eq(ordersTable.status, status));
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Total Count
+    const [totalRes] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(ordersTable)
+      .where(whereCondition);
+
+    // Fetch Paginated Orders
+    const adminOrders = await db
       .select()
       .from(ordersTable)
-      .orderBy(desc(ordersTable.createdAt));
-    if (status) orders = orders.filter((o) => o.status === status);
-    const total = orders.length;
+      .where(whereCondition)
+      .orderBy(desc(ordersTable.createdAt))
+      .limit(limitNum)
+      .offset(offset);
+
     res.json({
-      orders: orders.slice(offset, offset + limitNum).map(formatOrder),
-      total,
+      orders: adminOrders.map(formatOrder),
+      total: Number(totalRes.count),
       page: pageNum,
-      totalPages: Math.ceil(total / limitNum),
+      totalPages: Math.ceil(Number(totalRes.count) / limitNum),
     });
   } catch (err) {
-    res.status(500).json({ message: "Failed to list orders" });
-  }
-});
-
-app.put("/api/admin/orders/:id/status", requireAdmin, async (req, res) => {
-  try {
-    const id = parseInt(req.params.id as string);
-    const { status } = req.body;
-    const [order] = await db
-      .update(ordersTable)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(ordersTable.id, id))
-      .returning();
-    if (!order) {
-      res.status(404).json({ message: "Order not found" });
-      return;
-    }
-    res.json(formatOrder(order));
-  } catch (err) {
-    res.status(500).json({ message: "Failed to update order status" });
+    console.error(err);
+    res.status(500).json({ message: "Failed to list admin orders" });
   }
 });
 
