@@ -27,7 +27,7 @@ app.get("/api/healthz", (_req, res) => {
 });
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
-app.post("/api/auth/send-otp", async (req, res) => {
+app.post("/api/auth/send-otp", async (req: any, res: any) => {
   try {
     const phoneInput = Array.isArray(req.body.phone) ? req.body.phone[0] : req.body.phone;
     const phone = String(phoneInput || "");
@@ -63,7 +63,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
   }
 });
 
-app.post("/api/auth/verify-otp", async (req, res) => {
+app.post("/api/auth/verify-otp", async (req: any, res: any) => {
   try {
     const phoneInput = Array.isArray(req.body.phone) ? req.body.phone[0] : req.body.phone;
     const otpInput = Array.isArray(req.body.otp) ? req.body.otp[0] : req.body.otp;
@@ -124,8 +124,8 @@ app.post("/api/auth/logout", (_req, res) =>
   res.json({ message: "Logged out" }),
 );
 
-app.get("/api/auth/me", requireAuth, (req, res) => {
-  const u = (req as any).user;
+app.get("/api/auth/me", requireAuth, (req: any, res: any) => {
+  const u = req.user;
   res.json({
     id: u.id,
     phone: u.phone,
@@ -191,11 +191,10 @@ function formatProduct(p: any, cat?: any) {
 }
 
 // ─── Products ────────────────────────────────────────────────────────────────
-app.get("/api/products", async (req, res) => {
+app.get("/api/products", async (req: any, res: any) => {
   try {
     const query = req.query as any;
     
-    // FIX: String() wrapping to eliminate 'string[]' array check errors
     const category = query.category ? String(query.category) : undefined;
     const search = query.search ? String(query.search) : undefined;
     const sort = query.sort ? String(query.sort) : undefined;
@@ -247,7 +246,7 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-app.get("/api/products/:id", async (req, res) => {
+app.get("/api/products/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(String(req.params.id));
     const results = await db
@@ -310,14 +309,17 @@ async function getCart(userId: number) {
   };
 }
 
-app.get("/api/cart", requireAuth, async (req, res) => {
-  res.json(await getCart((req as any).user.id));
+app.get("/api/cart", requireAuth, async (req: any, res: any) => {
+  res.json(await getCart(req.user.id));
 });
 
-app.post("/api/cart/items", requireAuth, async (req, res) => {
+app.post("/api/cart/items", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
-    const { productId, quantity, weight } = req.body;
+    const user = req.user;
+    const productId = req.body.productId;
+    const quantity = req.body.quantity;
+    const weight = req.body.weight;
+    
     const product = await db
       .select()
       .from(productsTable)
@@ -355,11 +357,11 @@ app.post("/api/cart/items", requireAuth, async (req, res) => {
   }
 });
 
-app.put("/api/cart/items/:id", requireAuth, async (req, res) => {
+app.put("/api/cart/items/:id", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const id = parseInt(String(req.params.id));
-    const { quantity } = req.body;
+    const quantity = req.body.quantity;
     if (quantity <= 0) {
       await db
         .delete(cartItemsTable)
@@ -380,9 +382,9 @@ app.put("/api/cart/items/:id", requireAuth, async (req, res) => {
   }
 });
 
-app.delete("/api/cart/items/:id", requireAuth, async (req, res) => {
+app.delete("/api/cart/items/:id", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     await db
       .delete(cartItemsTable)
       .where(
@@ -397,11 +399,11 @@ app.delete("/api/cart/items/:id", requireAuth, async (req, res) => {
   }
 });
 
-app.delete("/api/cart/clear", requireAuth, async (req, res) => {
+app.delete("/api/cart/clear", requireAuth, async (req: any, res: any) => {
   try {
     await db
       .delete(cartItemsTable)
-      .where(eq(cartItemsTable.userId, (req as any).user.id));
+      .where(eq(cartItemsTable.userId, req.user.id));
     res.json({ message: "Cart cleared" });
   } catch (err) {
     res.status(500).json({ message: "Failed to clear cart" });
@@ -409,9 +411,9 @@ app.delete("/api/cart/clear", requireAuth, async (req, res) => {
 });
 
 // ─── Wishlist ─────────────────────────────────────────────────────────────────
-app.get("/api/wishlist", requireAuth, async (req, res) => {
+app.get("/api/wishlist", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const items = await db
       .select({
         wishlist: wishlistTable,
@@ -435,9 +437,9 @@ app.get("/api/wishlist", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/wishlist/:productId", requireAuth, async (req, res) => {
+app.post("/api/wishlist/:productId", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const productId = parseInt(String(req.params.productId));
     const existing = await db
       .select()
@@ -451,9 +453,9 @@ app.post("/api/wishlist/:productId", requireAuth, async (req, res) => {
   }
 });
 
-app.delete("/api/wishlist/:productId", requireAuth, async (req, res) => {
+app.delete("/api/wishlist/:productId", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     await db
       .delete(wishlistTable)
       .where(
@@ -489,21 +491,21 @@ function formatOrder(o: any) {
   };
 }
 
-app.get("/api/orders", requireAuth, async (req, res) => {
+app.get("/api/orders", requireAuth, async (req: any, res: any) => {
   try {
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(eq(ordersTable.userId, (req as any).user.id));
+      .where(eq(ordersTable.userId, req.user.id));
     res.json(orders.map(formatOrder));
   } catch (err) {
     res.status(500).json({ message: "Failed to list orders" });
   }
 });
 
-app.post("/api/orders", requireAuth, async (req, res) => {
+app.post("/api/orders", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const { addressId, paymentMethod, couponCode } = req.body;
 
     const addresses = await db
@@ -615,9 +617,9 @@ app.post("/api/orders", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/api/orders/:id", requireAuth, async (req, res) => {
+app.get("/api/orders/:id", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const orders = await db
       .select()
       .from(ordersTable)
@@ -633,7 +635,7 @@ app.get("/api/orders/:id", requireAuth, async (req, res) => {
 });
 
 // ─── Coupons ─────────────────────────────────────────────────────────────────
-app.post("/api/coupons/validate", async (req, res) => {
+app.post("/api/coupons/validate", async (req: any, res: any) => {
   try {
     const { code, orderTotal } = req.body;
     if (!code) {
@@ -695,7 +697,7 @@ app.post("/api/coupons/validate", async (req, res) => {
 });
 
 // ─── Reviews ─────────────────────────────────────────────────────────────────
-app.get("/api/reviews/product/:productId", async (req, res) => {
+app.get("/api/reviews/product/:productId", async (req: any, res: any) => {
   try {
     const productId = parseInt(String(req.params.productId));
     const reviews = await db
@@ -719,9 +721,9 @@ app.get("/api/reviews/product/:productId", async (req, res) => {
   }
 });
 
-app.post("/api/reviews/product/:productId", requireAuth, async (req, res) => {
+app.post("/api/reviews/product/:productId", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const productId = parseInt(String(req.params.productId));
     const { rating, comment } = req.body;
     const [review] = await db
@@ -743,9 +745,9 @@ app.post("/api/reviews/product/:productId", requireAuth, async (req, res) => {
 });
 
 // ─── Users / Profile ─────────────────────────────────────────────────────────
-app.get("/api/users/profile", requireAuth, async (req, res) => {
+app.get("/api/users/profile", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const orders = await db
       .select()
       .from(ordersTable)
@@ -766,9 +768,9 @@ app.get("/api/users/profile", requireAuth, async (req, res) => {
   }
 });
 
-app.put("/api/users/profile", requireAuth, async (req, res) => {
+app.put("/api/users/profile", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const { name, email } = req.body;
     await db
       .update(usersTable)
@@ -798,12 +800,12 @@ app.put("/api/users/profile", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/api/users/addresses", requireAuth, async (req, res) => {
+app.get("/api/users/addresses", requireAuth, async (req: any, res: any) => {
   try {
     const addresses = await db
       .select()
       .from(addressesTable)
-      .where(eq(addressesTable.userId, (req as any).user.id));
+      .where(eq(addressesTable.userId, req.user.id));
     res.json(
       addresses.map((a) => ({
         id: a.id,
@@ -822,9 +824,9 @@ app.get("/api/users/addresses", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/users/addresses", requireAuth, async (req, res) => {
+app.post("/api/users/addresses", requireAuth, async (req: any, res: any) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     const { name, phone, line1, line2, city, state, pincode, isDefault } = req.body;
     if (isDefault)
       await db
@@ -920,7 +922,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
   }
 });
 
-app.post("/api/admin/products", requireAdmin, async (req, res) => {
+app.post("/api/admin/products", requireAdmin, async (req: any, res: any) => {
   try {
     const { name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions } = req.body;
     const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -934,7 +936,7 @@ app.post("/api/admin/products", requireAdmin, async (req, res) => {
   }
 });
 
-app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
+app.put("/api/admin/products/:id", requireAdmin, async (req: any, res: any) => {
   try {
     const id = parseInt(String(req.params.id));
     const { name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions } = req.body;
@@ -950,7 +952,7 @@ app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
   }
 });
 
-app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
+app.delete("/api/admin/products/:id", requireAdmin, async (req: any, res: any) => {
   try {
     await db.delete(productsTable).where(eq(productsTable.id, parseInt(String(req.params.id))));
     res.json({ message: "Product deleted" });
@@ -960,7 +962,7 @@ app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
 });
 
 // ─── Admin Orders ────────────────────────────────────────────────────────────
-app.get("/api/admin/orders", requireAdmin, async (req, res) => {
+app.get("/api/admin/orders", requireAdmin, async (req: any, res: any) => {
   try {
     const query = req.query as any;
     const status = query.status ? String(query.status) : undefined;
@@ -974,13 +976,11 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
     if (status) conditions.push(eq(ordersTable.status, status));
     const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Total Count
     const [totalRes] = await db
       .select({ count: sql<number>`count(*)` })
       .from(ordersTable)
       .where(whereCondition);
 
-    // Fetch Paginated Orders
     const adminOrders = await db
       .select()
       .from(ordersTable)
