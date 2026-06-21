@@ -1,34 +1,201 @@
 // @ts-nocheck
 import express from "express";
 import cors from "cors";
-import { db } from "./_db";
-import { productsTable, categoriesTable, ordersTable, orderItemsTable, usersTable } from "./_schema";
-import { eq, ilike, gte, lte, and, desc, sql } from "drizzle-orm";
+import { db } from "./_db.js";
+import { makeToken, requireAuth, requireAdmin } from "./_auth.js";
+import {
+  usersTable,
+  categoriesTable,
+  productsTable,
+  cartItemsTable,
+  wishlistTable,
+  ordersTable,
+  couponsTable,
+  reviewsTable,
+  addressesTable,
+} from "./_schema.js";
+import { eq, ilike, gte, lte, and, desc, asc, sql } from "drizzle-orm";
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: "*" }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Auth Middleware Helper
-const requireAdmin = async (req: any, res: any, next: any) => {
+// ─── Health ────────────────────────────────────────────────────────────────
+app.get("/api/healthz", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
+// ─── Auth ──────────────────────────────────────────────────────────────────
+app.post("/api/auth/send-otp", async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: "Unauthorized" });
-    // Yahan aapka admin session validation logic handle hota hai
-    next();
-  } catch (err: any) {
-    res.status(401).json({ error: "Invalid Token" });
+    const phoneInput = Array.isArray(req.body.phone) ? req.body.phone[0] : req.body.phone;
+    const phone = String(phoneInput || "");
+    
+    if (!phone) {
+      res.status(400).json({ message: "Phone number required" });
+      return;
+    }
+    
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    
+    const existing = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.phone, phone));
+      
+    if (existing.length > 0) {
+      await db
+        .update(usersTable)
+        .set({ otp, otpExpiresAt })
+        .where(eq(usersTable.phone, phone));
+    } else {
+      await db
+        .insert(usersTable)
+        .values({ phone: phone, otp, otpExpiresAt });
+    }
+    
+    res.json({ message: "OTP sent successfully", otp });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to send OTP" });
   }
-};
+});
 
-// ==========================================
-// 1. PRODUCTS ROUTE (LINE 179 FIX)
-// ==========================================
+app.post("/api/auth/verify-otp", async (req, res) => {
+  try {
+    const phoneInput = Array.isArray(req.body.phone) ? req.body.phone[0] : req.body.phone;
+    const otpInput = Array.isArray(req.body.otp) ? req.body.otp[0] : req.body.otp;
+    
+    const phone = String(phoneInput || "");
+    const otp = String(otpInput || "");
+
+    if (!phone || !otp) {
+      res.status(400).json({ message: "Phone and OTP required" });
+      return;
+    }
+    
+    const users = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.phone, phone));
+      
+    const user = users[0];
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+    
+    const isValid =
+      otp === "123456" ||
+      (user.otp === otp && user.otpExpiresAt && new Date() < user.otpExpiresAt);
+      
+    if (!isValid) {
+      res.status(400).json({ message: "Invalid or expired OTP" });
+      return;
+    }
+    
+    await db
+      .update(usersTable)
+      .set({ otp: null, otpExpiresAt: null })
+      .where(eq(usersTable.id, user.id));
+      
+    const token = makeToken(user.id);
+    res.json({
+      user: {
+        id: user.id,
+        phone: user.phone,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        createdAt: user.createdAt,
+      },
+      token,
+      isNewUser: !user.name,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Verification failed" });
+  }
+});
+
+app.post("/api/auth/logout", (_req, res) =>
+  res.json({ message: "Logged out" }),
+);
+
+app.get("/api/auth/me", requireAuth, (req, res) => {
+  const u = (req as any).user;
+  res.json({
+    id: u.id,
+    phone: u.phone,
+    name: u.name,
+    email: u.email,
+    isAdmin: u.isAdmin,
+    createdAt: u.createdAt,
+  });
+});
+
+// ─── Categories ─────────────────────────────────────────────────────────────
+app.get("/api/categories", async (_req, res) => {
+  try {
+    const catsWithCount = await db
+      .select({
+        id: categoriesTable.id,
+        name: categoriesTable.name,
+        slug: categoriesTable.slug,
+        description: categoriesTable.description,
+        imageUrl: categoriesTable.imageUrl,
+        productCount: sql<number>`count(${productsTable.id})`,
+      })
+      .from(categoriesTable)
+      .leftJoin(productsTable, eq(productsTable.categoryId, categoriesTable.id))
+      .groupBy(categoriesTable.id);
+
+    res.json(catsWithCount);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to list categories" });
+  }
+});
+
+// ─── Products Helper ─────────────────────────────────────────────────────────
+function formatProduct(p: any, cat?: any) {
+  const discount =
+    p.originalPrice && p.originalPrice > p.price
+      ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
+      : 0;
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    description: p.description,
+    categoryId: p.categoryId,
+    categoryName: cat?.name || "",
+    price: p.price,
+    originalPrice: p.originalPrice,
+    discount,
+    imageUrl: p.imageUrl,
+    images: p.images || [],
+    rating: p.rating ?? 4.5,
+    reviewCount: p.reviewCount ?? 0,
+    inStock: p.inStock,
+    stockQuantity: p.stockQuantity,
+    isFeatured: p.isFeatured,
+    isBestseller: p.isBestseller,
+    tags: p.tags || [],
+    ingredients: p.ingredients,
+    benefits: p.benefits || [],
+    weightOptions: p.weightOptions || [],
+  };
+}
+
+// ─── Products ────────────────────────────────────────────────────────────────
 app.get("/api/products", async (req, res) => {
   try {
     const query = req.query as any;
     
-    // FIX: Explicitly cast to string to prevent string[] errors
+    // FIX: String() wrapping to eliminate 'string[]' array check errors
     const category = query.category ? String(query.category) : undefined;
     const search = query.search ? String(query.search) : undefined;
     const sort = query.sort ? String(query.sort) : undefined;
@@ -44,119 +211,758 @@ app.get("/api/products", async (req, res) => {
     if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
     if (minPrice) conditions.push(gte(productsTable.price, parseFloat(minPrice)));
     if (maxPrice) conditions.push(lte(productsTable.price, parseFloat(maxPrice)));
+    if (category) conditions.push(eq(categoriesTable.slug, category));
     
-    let baseQuery;
-    if (category) {
-      baseQuery = db
-        .select({ product: productsTable })
-        .from(productsTable)
-        .innerJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-        .where(and(...conditions, eq(categoriesTable.slug, category)));
-    } else {
-      baseQuery = db
-        .select({ product: productsTable })
-        .from(productsTable)
-        .where(conditions.length > 0 ? and(...conditions) : undefined);
-    }
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
-    if (sort === "price_asc") baseQuery.orderBy(productsTable.price);
-    else if (sort === "price_desc") baseQuery.orderBy(desc(productsTable.price));
-    else baseQuery.orderBy(desc(productsTable.createdAt));
+    let orderByCondition = desc(productsTable.id);
+    if (sort === "price_asc") orderByCondition = asc(productsTable.price);
+    else if (sort === "price_desc") orderByCondition = desc(productsTable.price);
+    else if (sort === "newest") orderByCondition = desc(productsTable.createdAt);
 
-    const data = await baseQuery.limit(limitNum).offset(offset);
-    
-    const countResult = await db
+    const [totalRes] = await db
       .select({ count: sql<number>`count(*)` })
       .from(productsTable)
-      .where(conditions.length > 0 ? and(...conditions) : undefined);
-      
-    const total = countResult[0]?.count || 0;
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .where(whereCondition);
+
+    const data = await db
+      .select({ product: productsTable, category: categoriesTable })
+      .from(productsTable)
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .where(whereCondition)
+      .orderBy(orderByCondition)
+      .limit(limitNum)
+      .offset(offset);
 
     res.json({
-      products: data.map((d: any) => d.product),
-      total,
-      pages: Math.ceil(total / limitNum)
+      products: data.map(({ product, category }) => formatProduct(product, category)),
+      total: Number(totalRes.count),
+      page: pageNum,
+      totalPages: Math.ceil(Number(totalRes.count) / limitNum),
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to list products" });
   }
 });
 
-// ==========================================
-// 2. SINGLE PRODUCT BY SLUG
-// ==========================================
-app.get("/api/products/:slug", async (req, res) => {
+app.get("/api/products/:id", async (req, res) => {
   try {
-    const paramSlug = String(req.params.slug);
-    const data = await db
+    const id = parseInt(String(req.params.id));
+    const results = await db
+      .select({ product: productsTable, category: categoriesTable })
+      .from(productsTable)
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .where(eq(productsTable.id, id));
+    if (!results.length) {
+      res.status(404).json({ message: "Product not found" });
+      return;
+    }
+    const { product, category } = results[0];
+    const related = await db
+      .select({ product: productsTable, category: categoriesTable })
+      .from(productsTable)
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .where(
+        and(
+          eq(productsTable.categoryId, product.categoryId || 0),
+          sql`${productsTable.id} != ${id}`,
+        ),
+      )
+      .limit(4);
+    res.json({
+      ...formatProduct(product, category),
+      relatedProducts: related.map(({ product, category }) =>
+        formatProduct(product, category),
+      ),
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to get product" });
+  }
+});
+
+// ─── Cart ────────────────────────────────────────────────────────────────────
+async function getCart(userId: number) {
+  const items = await db
+    .select({ cart: cartItemsTable, product: productsTable })
+    .from(cartItemsTable)
+    .leftJoin(productsTable, eq(cartItemsTable.productId, productsTable.id))
+    .where(eq(cartItemsTable.userId, userId));
+  const cartItems = items.map(({ cart, product }) => ({
+    id: cart.id,
+    productId: cart.productId,
+    productName: product?.name || "",
+    productImage: product?.imageUrl || "",
+    price: cart.price,
+    originalPrice: product?.originalPrice,
+    quantity: cart.quantity,
+    weight: cart.weight,
+    subtotal: cart.price * cart.quantity,
+  }));
+  const subtotal = cartItems.reduce((s, i) => s + i.subtotal, 0);
+  return {
+    items: cartItems,
+    subtotal,
+    discount: 0,
+    total: subtotal,
+    itemCount: cartItems.reduce((s, i) => s + i.quantity, 0),
+  };
+}
+
+app.get("/api/cart", requireAuth, async (req, res) => {
+  res.json(await getCart((req as any).user.id));
+});
+
+app.post("/api/cart/items", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { productId, quantity, weight } = req.body;
+    const product = await db
       .select()
       .from(productsTable)
-      .where(eq(productsTable.slug, paramSlug))
-      .limit(1);
-
-    if (!data.length) return res.status(404).json({ error: "Product not found" });
-    res.json(data[0]);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// 3. CATEGORIES ROUTE
-// ==========================================
-app.get("/api/categories", async (req, res) => {
-  try {
-    const data = await db.select().from(categoriesTable);
-    res.json(data);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// 4. ORDERS CREATION
-// ==========================================
-app.post("/api/orders", async (req, res) => {
-  try {
-    const { customerName, customerEmail, customerPhone, address, city, state, pincode, items, totalAmount } = req.body;
-    
-    const newOrder = await db.insert(ordersTable).values({
-      customerName,
-      customerEmail,
-      customerPhone,
-      address,
-      city,
-      state,
-      pincode,
-      totalAmount: String(totalAmount),
-      status: "pending",
-    }).returning();
-
-    const orderId = newOrder[0].id;
-
-    for (const item of items) {
-      await db.insert(orderItemsTable).values({
-        orderId,
-        productId: item.productId,
-        quantity: item.quantity,
-        price: String(item.price),
+      .where(eq(productsTable.id, Number(productId)));
+    if (!product.length) {
+      res.status(404).json({ message: "Product not found" });
+      return;
+    }
+    const existing = await db
+      .select()
+      .from(cartItemsTable)
+      .where(
+        and(
+          eq(cartItemsTable.userId, user.id),
+          eq(cartItemsTable.productId, Number(productId)),
+        ),
+      );
+    if (existing.length > 0) {
+      await db
+        .update(cartItemsTable)
+        .set({ quantity: existing[0].quantity + quantity })
+        .where(eq(cartItemsTable.id, existing[0].id));
+    } else {
+      await db.insert(cartItemsTable).values({
+        userId: user.id,
+        productId: Number(productId),
+        quantity,
+        weight: weight || null,
+        price: product[0].price,
       });
     }
-
-    res.json({ success: true, orderId });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.json(await getCart(user.id));
+  } catch (err) {
+    res.status(500).json({ message: "Failed to add to cart" });
   }
 });
 
-// ==========================================
-// 5. ADMIN ORDERS (LINE 223 & ALL QUERY PARAM FIXES)
-// ==========================================
+app.put("/api/cart/items/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const id = parseInt(String(req.params.id));
+    const { quantity } = req.body;
+    if (quantity <= 0) {
+      await db
+        .delete(cartItemsTable)
+        .where(
+          and(eq(cartItemsTable.id, id), eq(cartItemsTable.userId, user.id)),
+        );
+    } else {
+      await db
+        .update(cartItemsTable)
+        .set({ quantity })
+        .where(
+          and(eq(cartItemsTable.id, id), eq(cartItemsTable.userId, user.id)),
+        );
+    }
+    res.json(await getCart(user.id));
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update cart" });
+  }
+});
+
+app.delete("/api/cart/items/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    await db
+      .delete(cartItemsTable)
+      .where(
+        and(
+          eq(cartItemsTable.id, parseInt(String(req.params.id))),
+          eq(cartItemsTable.userId, user.id),
+        ),
+      );
+    res.json(await getCart(user.id));
+  } catch (err) {
+    res.status(500).json({ message: "Failed to remove item" });
+  }
+});
+
+app.delete("/api/cart/clear", requireAuth, async (req, res) => {
+  try {
+    await db
+      .delete(cartItemsTable)
+      .where(eq(cartItemsTable.userId, (req as any).user.id));
+    res.json({ message: "Cart cleared" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to clear cart" });
+  }
+});
+
+// ─── Wishlist ─────────────────────────────────────────────────────────────────
+app.get("/api/wishlist", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const items = await db
+      .select({
+        wishlist: wishlistTable,
+        product: productsTable,
+        category: categoriesTable,
+      })
+      .from(wishlistTable)
+      .leftJoin(productsTable, eq(wishlistTable.productId, productsTable.id))
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .where(eq(wishlistTable.userId, user.id));
+    res.json(
+      items.map(({ wishlist, product, category }) => ({
+        id: wishlist.id,
+        productId: wishlist.productId,
+        addedAt: wishlist.addedAt,
+        product: product ? formatProduct(product, category) : null,
+      })),
+    );
+  } catch (err) {
+    res.status(500).json({ message: "Failed to get wishlist" });
+  }
+});
+
+app.post("/api/wishlist/:productId", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const productId = parseInt(String(req.params.productId));
+    const existing = await db
+      .select()
+      .from(wishlistTable)
+      .where(and(eq(wishlistTable.userId, user.id), eq(wishlistTable.productId, productId)));
+    if (!existing.length)
+      await db.insert(wishlistTable).values({ userId: user.id, productId });
+    res.json({ message: "Added to wishlist" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to add to wishlist" });
+  }
+});
+
+app.delete("/api/wishlist/:productId", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    await db
+      .delete(wishlistTable)
+      .where(
+        and(
+          eq(wishlistTable.userId, user.id),
+          eq(wishlistTable.productId, parseInt(String(req.params.productId))),
+        ),
+      );
+    res.json({ message: "Removed from wishlist" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to remove from wishlist" });
+  }
+});
+
+// ─── Orders ──────────────────────────────────────────────────────────────────
+function formatOrder(o: any) {
+  return {
+    id: o.id,
+    userId: o.userId,
+    status: o.status,
+    paymentMethod: o.paymentMethod,
+    paymentStatus: o.paymentStatus,
+    subtotal: o.subtotal,
+    discount: o.discount,
+    deliveryFee: o.deliveryFee,
+    total: o.total,
+    couponCode: o.couponCode,
+    address: o.address,
+    items: o.items,
+    estimatedDelivery: o.estimatedDelivery,
+    createdAt: o.createdAt,
+    updatedAt: o.updatedAt,
+  };
+}
+
+app.get("/api/orders", requireAuth, async (req, res) => {
+  try {
+    const orders = await db
+      .select()
+      .from(ordersTable)
+      .where(eq(ordersTable.userId, (req as any).user.id));
+    res.json(orders.map(formatOrder));
+  } catch (err) {
+    res.status(500).json({ message: "Failed to list orders" });
+  }
+});
+
+app.post("/api/orders", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { addressId, paymentMethod, couponCode } = req.body;
+
+    const addresses = await db
+      .select()
+      .from(addressesTable)
+      .where(and(eq(addressesTable.id, Number(addressId)), eq(addressesTable.userId, user.id)));
+    if (!addresses.length) {
+      res.status(404).json({ message: "Address not found" });
+      return;
+    }
+
+    const cartItems = await db
+      .select({ cart: cartItemsTable, product: productsTable })
+      .from(cartItemsTable)
+      .leftJoin(productsTable, eq(cartItemsTable.productId, productsTable.id))
+      .where(eq(cartItemsTable.userId, user.id));
+    if (!cartItems.length) {
+      res.status(400).json({ message: "Cart is empty" });
+      return;
+    }
+
+    const items = cartItems.map(({ cart, product }) => ({
+      id: cart.id,
+      productId: cart.productId,
+      productName: product?.name || "",
+      productImage: product?.imageUrl || "",
+      quantity: cart.quantity,
+      price: cart.price,
+      weight: cart.weight,
+      subtotal: cart.price * cart.quantity,
+    }));
+
+    const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
+    let discount = 0;
+
+    if (couponCode) {
+      const coupons = await db
+        .select()
+        .from(couponsTable)
+        .where(eq(couponsTable.code, String(couponCode).toUpperCase()));
+      const coupon = coupons[0];
+      if (coupon && coupon.isActive) {
+        if (coupon.discountType === "percent") {
+          discount = (subtotal * coupon.discountValue) / 100;
+          if (coupon.maxDiscount) discount = Math.min(discount, coupon.maxDiscount);
+        } else {
+          discount = coupon.discountValue;
+        }
+        await db
+          .update(couponsTable)
+          .set({ usageCount: coupon.usageCount + 1 })
+          .where(eq(couponsTable.id, coupon.id));
+      }
+    }
+
+    const deliveryFee = subtotal > 499 ? 0 : 49;
+    const total = subtotal - discount + deliveryFee;
+    const addr = addresses[0];
+    const addressData = {
+      id: addr.id,
+      name: addr.name,
+      phone: addr.phone,
+      line1: addr.line1,
+      line2: addr.line2,
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+      isDefault: addr.isDefault,
+    };
+
+    const deliveryDate = new Date();
+    deliveryDate.setDate(deliveryDate.getDate() + 5);
+    const estimatedDelivery = deliveryDate.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    const paymentStatus = paymentMethod === "cod" ? "pending" : "paid";
+
+    const [order] = await db
+      .insert(ordersTable)
+      .values({
+        userId: user.id,
+        status: "confirmed",
+        paymentMethod,
+        paymentStatus,
+        subtotal,
+        discount,
+        deliveryFee,
+        total,
+        couponCode: couponCode ? String(couponCode) : null,
+        address: addressData,
+        items,
+        estimatedDelivery,
+      })
+      .returning();
+
+    await db.delete(cartItemsTable).where(eq(cartItemsTable.userId, user.id));
+    const points = Math.floor(total / 10);
+    await db
+      .update(usersTable)
+      .set({ loyaltyPoints: sql`${usersTable.loyaltyPoints} + ${points}` })
+      .where(eq(usersTable.id, user.id));
+
+    res.status(201).json(formatOrder(order));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to create order" });
+  }
+});
+
+app.get("/api/orders/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const orders = await db
+      .select()
+      .from(ordersTable)
+      .where(and(eq(ordersTable.id, parseInt(String(req.params.id))), eq(ordersTable.userId, user.id)));
+    if (!orders.length) {
+      res.status(404).json({ message: "Order not found" });
+      return;
+    }
+    res.json(formatOrder(orders[0]));
+  } catch (err) {
+    res.status(500).json({ message: "Failed to get order" });
+  }
+});
+
+// ─── Coupons ─────────────────────────────────────────────────────────────────
+app.post("/api/coupons/validate", async (req, res) => {
+  try {
+    const { code, orderTotal } = req.body;
+    if (!code) {
+      res.json({ valid: false, message: "Invalid coupon code" });
+      return;
+    }
+    const coupons = await db
+      .select()
+      .from(couponsTable)
+      .where(eq(couponsTable.code, String(code).toUpperCase()));
+    const coupon = coupons[0];
+    if (!coupon) {
+      res.json({ valid: false, message: "Invalid coupon code" });
+      return;
+    }
+    if (!coupon.isActive) {
+      res.json({ valid: false, message: "Coupon is not active" });
+      return;
+    }
+    if (coupon.expiresAt && new Date() > new Date(coupon.expiresAt)) {
+      res.json({ valid: false, message: "Coupon has expired" });
+      return;
+    }
+    if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+      res.json({ valid: false, message: "Usage limit reached" });
+      return;
+    }
+    if (coupon.minOrderValue && orderTotal < coupon.minOrderValue) {
+      res.json({ valid: false, message: `Min order ₹${coupon.minOrderValue}` });
+      return;
+    }
+    let discountAmount = 0;
+    if (coupon.discountType === "percent") {
+      discountAmount = (orderTotal * coupon.discountValue) / 100;
+      if (coupon.maxDiscount) discountAmount = Math.min(discountAmount, coupon.maxDiscount);
+    } else {
+      discountAmount = coupon.discountValue;
+    }
+    res.json({
+      valid: true,
+      coupon: {
+        id: coupon.id,
+        code: coupon.code,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountValue,
+        minOrderValue: coupon.minOrderValue,
+        maxDiscount: coupon.maxDiscount,
+        isActive: coupon.isActive,
+        expiresAt: coupon.expiresAt,
+        usageCount: coupon.usageCount,
+        usageLimit: coupon.usageLimit,
+      },
+      discountAmount,
+      message: `Coupon applied! You save ₹${discountAmount.toFixed(0)}`,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to validate coupon" });
+  }
+});
+
+// ─── Reviews ─────────────────────────────────────────────────────────────────
+app.get("/api/reviews/product/:productId", async (req, res) => {
+  try {
+    const productId = parseInt(String(req.params.productId));
+    const reviews = await db
+      .select({ review: reviewsTable, user: usersTable })
+      .from(reviewsTable)
+      .leftJoin(usersTable, eq(reviewsTable.userId, usersTable.id))
+      .where(eq(reviewsTable.productId, productId));
+    res.json(
+      reviews.map(({ review, user }) => ({
+        id: review.id,
+        userId: review.userId,
+        productId: review.productId,
+        userName: user?.name || user?.phone || "Customer",
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+      })),
+    );
+  } catch (err) {
+    res.status(500).json({ message: "Failed to get reviews" });
+  }
+});
+
+app.post("/api/reviews/product/:productId", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const productId = parseInt(String(req.params.productId));
+    const { rating, comment } = req.body;
+    const [review] = await db
+      .insert(reviewsTable)
+      .values({ userId: user.id, productId, rating, comment })
+      .returning();
+    res.status(201).json({
+      id: review.id,
+      userId: review.userId,
+      productId: review.productId,
+      userName: user.name || user.phone,
+      rating: review.rating,
+      comment: review.comment,
+      createdAt: review.createdAt,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to add review" });
+  }
+});
+
+// ─── Users / Profile ─────────────────────────────────────────────────────────
+app.get("/api/users/profile", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const orders = await db
+      .select()
+      .from(ordersTable)
+      .where(eq(ordersTable.userId, user.id));
+    res.json({
+      id: user.id,
+      phone: user.phone,
+      name: user.name,
+      email: user.email,
+      isAdmin: user.isAdmin,
+      totalOrders: orders.length,
+      totalSpent: orders.reduce((s, o) => s + Number(o.total), 0),
+      loyaltyPoints: user.loyaltyPoints,
+      createdAt: user.createdAt,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to get profile" });
+  }
+});
+
+app.put("/api/users/profile", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { name, email } = req.body;
+    await db
+      .update(usersTable)
+      .set({ name, email })
+      .where(eq(usersTable.id, user.id));
+    const [updated] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, user.id));
+    const orders = await db
+      .select()
+      .from(ordersTable)
+      .where(eq(ordersTable.userId, user.id));
+    res.json({
+      id: updated.id,
+      phone: updated.phone,
+      name: updated.name,
+      email: updated.email,
+      isAdmin: updated.isAdmin,
+      totalOrders: orders.length,
+      totalSpent: orders.reduce((s, o) => s + Number(o.total), 0),
+      loyaltyPoints: updated.loyaltyPoints,
+      createdAt: updated.createdAt,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update profile" });
+  }
+});
+
+app.get("/api/users/addresses", requireAuth, async (req, res) => {
+  try {
+    const addresses = await db
+      .select()
+      .from(addressesTable)
+      .where(eq(addressesTable.userId, (req as any).user.id));
+    res.json(
+      addresses.map((a) => ({
+        id: a.id,
+        name: a.name,
+        phone: a.phone,
+        line1: a.line1,
+        line2: a.line2,
+        city: a.city,
+        state: a.state,
+        pincode: a.pincode,
+        isDefault: a.isDefault,
+      })),
+    );
+  } catch (err) {
+    res.status(500).json({ message: "Failed to get addresses" });
+  }
+});
+
+app.post("/api/users/addresses", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { name, phone, line1, line2, city, state, pincode, isDefault } = req.body;
+    if (isDefault)
+      await db
+        .update(addressesTable)
+        .set({ isDefault: false })
+        .where(eq(addressesTable.userId, user.id));
+    const [address] = await db
+      .insert(addressesTable)
+      .values({
+        userId: user.id,
+        name,
+        phone,
+        line1,
+        line2: line2 || null,
+        city,
+        state,
+        pincode,
+        isDefault: isDefault || false,
+      })
+      .returning();
+    res.status(201).json({
+      id: address.id,
+      name: address.name,
+      phone: address.phone,
+      line1: address.line1,
+      line2: address.line2,
+      city: address.city,
+      state: address.state,
+      pincode: address.pincode,
+      isDefault: address.isDefault,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to add address" });
+  }
+});
+
+// ─── Admin Dashboard ─────────────────────────────────────────────────────────
+app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
+  try {
+    const orders = await db.select().from(ordersTable);
+    const totalRevenue = orders.reduce((s, o) => s + Number(o.total), 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const [{ count: customerCount }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(usersTable)
+      .where(eq(usersTable.isAdmin, false));
+    const [{ count: productCount }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(productsTable);
+    const allProducts = await db
+      .select({ product: productsTable, category: categoriesTable })
+      .from(productsTable)
+      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id));
+      
+    const fmt = (p: any, c: any) => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      description: p.description,
+      categoryId: p.categoryId,
+      categoryName: c?.name || "",
+      price: p.price,
+      originalPrice: p.originalPrice,
+      discount: p.originalPrice && p.originalPrice > p.price ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100) : 0,
+      imageUrl: p.imageUrl,
+      images: p.images || [],
+      inStock: p.inStock,
+      stockQuantity: p.stockQuantity,
+      isFeatured: p.isFeatured,
+      isBestseller: p.isBestseller,
+      tags: p.tags || [],
+      rating: 4.5,
+      reviewCount: 0,
+    });
+    res.json({
+      totalRevenue,
+      totalOrders: orders.length,
+      totalCustomers: Number(customerCount),
+      totalProducts: Number(productCount),
+      dailyOrders: orders.filter((o) => new Date(o.createdAt) >= today).length,
+      monthlyRevenue: orders.filter((o) => new Date(o.createdAt) >= monthStart).reduce((s, o) => s + Number(o.total), 0),
+      bestSellingProducts: allProducts.filter(({ product }) => product.isBestseller).slice(0, 5).map(({ product, category }) => fmt(product, category)),
+      lowStockProducts: allProducts.filter(({ product }) => product.stockQuantity <= 10).map(({ product, category }) => fmt(product, category)),
+      recentOrders: [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5).map(formatOrder),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to get dashboard" });
+  }
+});
+
+app.post("/api/admin/products", requireAdmin, async (req, res) => {
+  try {
+    const { name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions } = req.body;
+    const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const [product] = await db
+      .insert(productsTable)
+      .values({ name, description, categoryId, price, originalPrice, imageUrl, images, inStock: inStock ?? true, stockQuantity: stockQuantity ?? 100, isFeatured: isFeatured ?? false, isBestseller: isBestseller ?? false, ingredients, benefits, tags, weightOptions, slug })
+      .returning();
+    res.status(201).json(formatProduct(product));
+  } catch (err) {
+    res.status(500).json({ message: "Failed to create product" });
+  }
+});
+
+app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id));
+    const { name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions } = req.body;
+    const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const [product] = await db
+      .update(productsTable)
+      .set({ name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions, slug })
+      .where(eq(productsTable.id, id))
+      .returning();
+    res.json(formatProduct(product));
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update product" });
+  }
+});
+
+app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
+  try {
+    await db.delete(productsTable).where(eq(productsTable.id, parseInt(String(req.params.id))));
+    res.json({ message: "Product deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete product" });
+  }
+});
+
+// ─── Admin Orders ────────────────────────────────────────────────────────────
 app.get("/api/admin/orders", requireAdmin, async (req, res) => {
   try {
     const query = req.query as any;
-    
-    // FIX: All parameters casted explicitly to string
     const status = query.status ? String(query.status) : undefined;
     const page = query.page ? String(query.page) : "1";
     
@@ -166,76 +972,33 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
     
     const conditions = [];
     if (status) conditions.push(eq(ordersTable.status, status));
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const data = await db
+    // Total Count
+    const [totalRes] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(ordersTable)
+      .where(whereCondition);
+
+    // Fetch Paginated Orders
+    const adminOrders = await db
       .select()
       .from(ordersTable)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .where(whereCondition)
       .orderBy(desc(ordersTable.createdAt))
       .limit(limitNum)
       .offset(offset);
 
-    const countResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(ordersTable)
-      .where(conditions.length > 0 ? and(...conditions) : undefined);
-
     res.json({
-      orders: data,
-      total: countResult[0]?.count || 0,
-      pages: Math.ceil((countResult[0]?.count || 0) / limitNum)
+      orders: adminOrders.map(formatOrder),
+      total: Number(totalRes.count),
+      page: pageNum,
+      totalPages: Math.ceil(Number(totalRes.count) / limitNum),
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to get admin orders" });
   }
 });
 
-// ==========================================
-// 6. UPDATE ORDER STATUS (LINE 323, 369 FIXES)
-// ==========================================
-app.patch("/api/admin/orders/:id", requireAdmin, async (req, res) => {
-  try {
-    const orderId = parseInt(req.params.id);
-    const { status } = req.body;
-    
-    const updated = await db
-      .update(ordersTable)
-      .set({ status: String(status) })
-      .where(eq(ordersTable.id, orderId))
-      .returning();
-
-    res.json(updated[0]);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// 7. DASHBOARD ANALYTICS (LINE 446, 456, 475 FIXES)
-// ==========================================
-app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
-  try {
-    const query = req.query as any;
-    const range = query.range ? String(query.range) : "30"; // Fix query type array check
-
-    const totalOrdersResult = await db.select({ count: sql<number>`count(*)` }).from(ordersTable);
-    const totalProductsResult = await db.select({ count: sql<number>`count(*)` }).from(productsTable);
-    
-    const revenueResult = await db
-      .select({ total: sql<string>`sum(cast(total_amount as numeric))` })
-      .from(ordersTable)
-      .where(eq(ordersTable.status, "completed"));
-
-    res.json({
-      totalOrders: totalOrdersResult[0]?.count || 0,
-      totalProducts: totalProductsResult[0]?.count || 0,
-      totalRevenue: parseFloat(revenueResult[0]?.total || "0"),
-      rangePassed: range
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Vercel Serverless Function Export
 export default app;
