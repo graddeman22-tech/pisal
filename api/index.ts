@@ -22,7 +22,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Health ────────────────────────────────────────────────────────────────
-app.get("/api/healthz", (_req, res) => {
+app.get("/api/healthz", (_req: any, res: any) => {
   res.json({ status: "ok" });
 });
 
@@ -99,7 +99,7 @@ app.post("/api/auth/verify-otp", async (req: any, res: any) => {
     await db
       .update(usersTable)
       .set({ otp: null, otpExpiresAt: null })
-      .where(eq(usersTable.id, user.id));
+      .where(eq(usersTable.id, Number(user.id)));
       
     const token = makeToken(user.id);
     res.json({
@@ -120,7 +120,7 @@ app.post("/api/auth/verify-otp", async (req: any, res: any) => {
   }
 });
 
-app.post("/api/auth/logout", (_req, res) =>
+app.post("/api/auth/logout", (_req: any, res: any) =>
   res.json({ message: "Logged out" }),
 );
 
@@ -137,7 +137,7 @@ app.get("/api/auth/me", requireAuth, (req: any, res: any) => {
 });
 
 // ─── Categories ─────────────────────────────────────────────────────────────
-app.get("/api/categories", async (_req, res) => {
+app.get("/api/categories", async (_req: any, res: any) => {
   try {
     const catsWithCount = await db
       .select({
@@ -248,28 +248,34 @@ app.get("/api/products", async (req: any, res: any) => {
 
 app.get("/api/products/:id", async (req: any, res: any) => {
   try {
-    const id = parseInt(String(req.params.id));
+    const rawId = req.params.id;
+    const cleanId = Number(Array.isArray(rawId) ? rawId[0] : rawId);
+
     const results = await db
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-      .where(eq(productsTable.id, id));
+      .leftJoin(categoriesTable, eq(categoriesTable.id, productsTable.categoryId))
+      .where(eq(productsTable.id, cleanId));
+
     if (!results.length) {
       res.status(404).json({ message: "Product not found" });
       return;
     }
     const { product, category } = results[0];
+    const targetCatId = Number(product.categoryId || 0);
+
     const related = await db
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
+      .leftJoin(categoriesTable, eq(categoriesTable.id, productsTable.categoryId))
       .where(
         and(
-          eq(productsTable.categoryId, product.categoryId || 0),
-          sql`${productsTable.id} != ${id}`,
+          eq(productsTable.categoryId, targetCatId),
+          sql`${productsTable.id} != ${cleanId}`,
         ),
       )
       .limit(4);
+
     res.json({
       ...formatProduct(product, category),
       relatedProducts: related.map(({ product, category }) =>
@@ -286,8 +292,9 @@ async function getCart(userId: number) {
   const items = await db
     .select({ cart: cartItemsTable, product: productsTable })
     .from(cartItemsTable)
-    .leftJoin(productsTable, eq(cartItemsTable.productId, productsTable.id))
+    .leftJoin(productsTable, eq(productsTable.id, cartItemsTable.productId))
     .where(eq(cartItemsTable.userId, userId));
+
   const cartItems = items.map(({ cart, product }) => ({
     id: cart.id,
     productId: cart.productId,
@@ -310,7 +317,7 @@ async function getCart(userId: number) {
 }
 
 app.get("/api/cart", requireAuth, async (req: any, res: any) => {
-  res.json(await getCart(req.user.id));
+  res.json(await getCart(Number(req.user.id)));
 });
 
 app.post("/api/cart/items", requireAuth, async (req: any, res: any) => {
@@ -333,7 +340,7 @@ app.post("/api/cart/items", requireAuth, async (req: any, res: any) => {
       .from(cartItemsTable)
       .where(
         and(
-          eq(cartItemsTable.userId, user.id),
+          eq(cartItemsTable.userId, Number(user.id)),
           eq(cartItemsTable.productId, Number(productId)),
         ),
       );
@@ -344,14 +351,14 @@ app.post("/api/cart/items", requireAuth, async (req: any, res: any) => {
         .where(eq(cartItemsTable.id, existing[0].id));
     } else {
       await db.insert(cartItemsTable).values({
-        userId: user.id,
+        userId: Number(user.id),
         productId: Number(productId),
         quantity,
         weight: weight || null,
         price: product[0].price,
       });
     }
-    res.json(await getCart(user.id));
+    res.json(await getCart(Number(user.id)));
   } catch (err) {
     res.status(500).json({ message: "Failed to add to cart" });
   }
@@ -360,23 +367,25 @@ app.post("/api/cart/items", requireAuth, async (req: any, res: any) => {
 app.put("/api/cart/items/:id", requireAuth, async (req: any, res: any) => {
   try {
     const user = req.user;
-    const id = parseInt(String(req.params.id));
+    const rawId = req.params.id;
+    const cleanId = Number(Array.isArray(rawId) ? rawId[0] : rawId);
     const quantity = req.body.quantity;
+
     if (quantity <= 0) {
       await db
         .delete(cartItemsTable)
         .where(
-          and(eq(cartItemsTable.id, id), eq(cartItemsTable.userId, user.id)),
+          and(eq(cartItemsTable.id, cleanId), eq(cartItemsTable.userId, Number(user.id))),
         );
     } else {
       await db
         .update(cartItemsTable)
         .set({ quantity })
         .where(
-          and(eq(cartItemsTable.id, id), eq(cartItemsTable.userId, user.id)),
+          and(eq(cartItemsTable.id, cleanId), eq(cartItemsTable.userId, Number(user.id))),
         );
     }
-    res.json(await getCart(user.id));
+    res.json(await getCart(Number(user.id)));
   } catch (err) {
     res.status(500).json({ message: "Failed to update cart" });
   }
@@ -385,15 +394,18 @@ app.put("/api/cart/items/:id", requireAuth, async (req: any, res: any) => {
 app.delete("/api/cart/items/:id", requireAuth, async (req: any, res: any) => {
   try {
     const user = req.user;
+    const rawId = req.params.id;
+    const cleanId = Number(Array.isArray(rawId) ? rawId[0] : rawId);
+
     await db
       .delete(cartItemsTable)
       .where(
         and(
-          eq(cartItemsTable.id, parseInt(String(req.params.id))),
-          eq(cartItemsTable.userId, user.id),
+          eq(cartItemsTable.id, cleanId),
+          eq(cartItemsTable.userId, Number(user.id)),
         ),
       );
-    res.json(await getCart(user.id));
+    res.json(await getCart(Number(user.id)));
   } catch (err) {
     res.status(500).json({ message: "Failed to remove item" });
   }
@@ -403,7 +415,7 @@ app.delete("/api/cart/clear", requireAuth, async (req: any, res: any) => {
   try {
     await db
       .delete(cartItemsTable)
-      .where(eq(cartItemsTable.userId, req.user.id));
+      .where(eq(cartItemsTable.userId, Number(req.user.id)));
     res.json({ message: "Cart cleared" });
   } catch (err) {
     res.status(500).json({ message: "Failed to clear cart" });
@@ -421,9 +433,9 @@ app.get("/api/wishlist", requireAuth, async (req: any, res: any) => {
         category: categoriesTable,
       })
       .from(wishlistTable)
-      .leftJoin(productsTable, eq(wishlistTable.productId, productsTable.id))
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-      .where(eq(wishlistTable.userId, user.id));
+      .leftJoin(productsTable, eq(productsTable.id, wishlistTable.productId))
+      .leftJoin(categoriesTable, eq(categoriesTable.id, productsTable.categoryId))
+      .where(eq(wishlistTable.userId, Number(user.id)));
     res.json(
       items.map(({ wishlist, product, category }) => ({
         id: wishlist.id,
@@ -440,13 +452,15 @@ app.get("/api/wishlist", requireAuth, async (req: any, res: any) => {
 app.post("/api/wishlist/:productId", requireAuth, async (req: any, res: any) => {
   try {
     const user = req.user;
-    const productId = parseInt(String(req.params.productId));
+    const rawProdId = req.params.productId;
+    const productId = Number(Array.isArray(rawProdId) ? rawProdId[0] : rawProdId);
+
     const existing = await db
       .select()
       .from(wishlistTable)
-      .where(and(eq(wishlistTable.userId, user.id), eq(wishlistTable.productId, productId)));
+      .where(and(eq(wishlistTable.userId, Number(user.id)), eq(wishlistTable.productId, productId)));
     if (!existing.length)
-      await db.insert(wishlistTable).values({ userId: user.id, productId });
+      await db.insert(wishlistTable).values({ userId: Number(user.id), productId });
     res.json({ message: "Added to wishlist" });
   } catch (err) {
     res.status(500).json({ message: "Failed to add to wishlist" });
@@ -456,12 +470,15 @@ app.post("/api/wishlist/:productId", requireAuth, async (req: any, res: any) => 
 app.delete("/api/wishlist/:productId", requireAuth, async (req: any, res: any) => {
   try {
     const user = req.user;
+    const rawProdId = req.params.productId;
+    const productId = Number(Array.isArray(rawProdId) ? rawProdId[0] : rawProdId);
+
     await db
       .delete(wishlistTable)
       .where(
         and(
-          eq(wishlistTable.userId, user.id),
-          eq(wishlistTable.productId, parseInt(String(req.params.productId))),
+          eq(wishlistTable.userId, Number(user.id)),
+          eq(wishlistTable.productId, productId),
         ),
       );
     res.json({ message: "Removed from wishlist" });
@@ -496,7 +513,7 @@ app.get("/api/orders", requireAuth, async (req: any, res: any) => {
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(eq(ordersTable.userId, req.user.id));
+      .where(eq(ordersTable.userId, Number(req.user.id)));
     res.json(orders.map(formatOrder));
   } catch (err) {
     res.status(500).json({ message: "Failed to list orders" });
@@ -511,7 +528,7 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
     const addresses = await db
       .select()
       .from(addressesTable)
-      .where(and(eq(addressesTable.id, Number(addressId)), eq(addressesTable.userId, user.id)));
+      .where(and(eq(addressesTable.id, Number(addressId)), eq(addressesTable.userId, Number(user.id))));
     if (!addresses.length) {
       res.status(404).json({ message: "Address not found" });
       return;
@@ -520,8 +537,8 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
     const cartItems = await db
       .select({ cart: cartItemsTable, product: productsTable })
       .from(cartItemsTable)
-      .leftJoin(productsTable, eq(cartItemsTable.productId, productsTable.id))
-      .where(eq(cartItemsTable.userId, user.id));
+      .leftJoin(productsTable, eq(productsTable.id, cartItemsTable.productId))
+      .where(eq(cartItemsTable.userId, Number(user.id)));
     if (!cartItems.length) {
       res.status(400).json({ message: "Cart is empty" });
       return;
@@ -588,7 +605,7 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
     const [order] = await db
       .insert(ordersTable)
       .values({
-        userId: user.id,
+        userId: Number(user.id),
         status: "confirmed",
         paymentMethod,
         paymentStatus,
@@ -603,12 +620,12 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
       })
       .returning();
 
-    await db.delete(cartItemsTable).where(eq(cartItemsTable.userId, user.id));
+    await db.delete(cartItemsTable).where(eq(cartItemsTable.userId, Number(user.id)));
     const points = Math.floor(total / 10);
     await db
       .update(usersTable)
       .set({ loyaltyPoints: sql`${usersTable.loyaltyPoints} + ${points}` })
-      .where(eq(usersTable.id, user.id));
+      .where(eq(usersTable.id, Number(user.id)));
 
     res.status(201).json(formatOrder(order));
   } catch (err) {
@@ -620,10 +637,13 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
 app.get("/api/orders/:id", requireAuth, async (req: any, res: any) => {
   try {
     const user = req.user;
+    const rawId = req.params.id;
+    const cleanId = Number(Array.isArray(rawId) ? rawId[0] : rawId);
+
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(and(eq(ordersTable.id, parseInt(String(req.params.id))), eq(ordersTable.userId, user.id)));
+      .where(and(eq(ordersTable.id, cleanId), eq(ordersTable.userId, Number(user.id))));
     if (!orders.length) {
       res.status(404).json({ message: "Order not found" });
       return;
@@ -699,11 +719,13 @@ app.post("/api/coupons/validate", async (req: any, res: any) => {
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 app.get("/api/reviews/product/:productId", async (req: any, res: any) => {
   try {
-    const productId = parseInt(String(req.params.productId));
+    const rawProdId = req.params.productId;
+    const productId = Number(Array.isArray(rawProdId) ? rawProdId[0] : rawProdId);
+
     const reviews = await db
       .select({ review: reviewsTable, user: usersTable })
       .from(reviewsTable)
-      .leftJoin(usersTable, eq(reviewsTable.userId, usersTable.id))
+      .leftJoin(usersTable, eq(usersTable.id, reviewsTable.userId))
       .where(eq(reviewsTable.productId, productId));
     res.json(
       reviews.map(({ review, user }) => ({
@@ -724,11 +746,13 @@ app.get("/api/reviews/product/:productId", async (req: any, res: any) => {
 app.post("/api/reviews/product/:productId", requireAuth, async (req: any, res: any) => {
   try {
     const user = req.user;
-    const productId = parseInt(String(req.params.productId));
+    const rawProdId = req.params.productId;
+    const productId = Number(Array.isArray(rawProdId) ? rawProdId[0] : rawProdId);
     const { rating, comment } = req.body;
+
     const [review] = await db
       .insert(reviewsTable)
-      .values({ userId: user.id, productId, rating, comment })
+      .values({ userId: Number(user.id), productId, rating, comment })
       .returning();
     res.status(201).json({
       id: review.id,
@@ -751,7 +775,7 @@ app.get("/api/users/profile", requireAuth, async (req: any, res: any) => {
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(eq(ordersTable.userId, user.id));
+      .where(eq(ordersTable.userId, Number(user.id)));
     res.json({
       id: user.id,
       phone: user.phone,
@@ -775,15 +799,15 @@ app.put("/api/users/profile", requireAuth, async (req: any, res: any) => {
     await db
       .update(usersTable)
       .set({ name, email })
-      .where(eq(usersTable.id, user.id));
+      .where(eq(usersTable.id, Number(user.id)));
     const [updated] = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.id, user.id));
+      .where(eq(usersTable.id, Number(user.id)));
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(eq(ordersTable.userId, user.id));
+      .where(eq(ordersTable.userId, Number(user.id)));
     res.json({
       id: updated.id,
       phone: updated.phone,
@@ -805,7 +829,7 @@ app.get("/api/users/addresses", requireAuth, async (req: any, res: any) => {
     const addresses = await db
       .select()
       .from(addressesTable)
-      .where(eq(addressesTable.userId, req.user.id));
+      .where(eq(addressesTable.userId, Number(req.user.id)));
     res.json(
       addresses.map((a) => ({
         id: a.id,
@@ -832,11 +856,11 @@ app.post("/api/users/addresses", requireAuth, async (req: any, res: any) => {
       await db
         .update(addressesTable)
         .set({ isDefault: false })
-        .where(eq(addressesTable.userId, user.id));
+        .where(eq(addressesTable.userId, Number(user.id)));
     const [address] = await db
       .insert(addressesTable)
       .values({
-        userId: user.id,
+        userId: Number(user.id),
         name,
         phone,
         line1,
@@ -864,7 +888,7 @@ app.post("/api/users/addresses", requireAuth, async (req: any, res: any) => {
 });
 
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
-app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
+app.get("/api/admin/dashboard", requireAdmin, async (_req: any, res: any) => {
   try {
     const orders = await db.select().from(ordersTable);
     const totalRevenue = orders.reduce((s, o) => s + Number(o.total), 0);
@@ -883,7 +907,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const allProducts = await db
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id));
+      .leftJoin(categoriesTable, eq(categoriesTable.id, productsTable.categoryId));
       
     const fmt = (p: any, c: any) => ({
       id: p.id,
@@ -928,7 +952,7 @@ app.post("/api/admin/products", requireAdmin, async (req: any, res: any) => {
     const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     const [product] = await db
       .insert(productsTable)
-      .values({ name, description, categoryId, price, originalPrice, imageUrl, images, inStock: inStock ?? true, stockQuantity: stockQuantity ?? 100, isFeatured: isFeatured ?? false, isBestseller: isBestseller ?? false, ingredients, benefits, tags, weightOptions, slug })
+      .values({ name, description, categoryId: Number(categoryId), price, originalPrice, imageUrl, images, inStock: inStock ?? true, stockQuantity: stockQuantity ?? 100, isFeatured: isFeatured ?? false, isBestseller: isBestseller ?? false, ingredients, benefits, tags, weightOptions, slug })
       .returning();
     res.status(201).json(formatProduct(product));
   } catch (err) {
@@ -938,12 +962,14 @@ app.post("/api/admin/products", requireAdmin, async (req: any, res: any) => {
 
 app.put("/api/admin/products/:id", requireAdmin, async (req: any, res: any) => {
   try {
-    const id = parseInt(String(req.params.id));
+    const rawId = req.params.id;
+    const id = Number(Array.isArray(rawId) ? rawId[0] : rawId);
     const { name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions } = req.body;
     const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    
     const [product] = await db
       .update(productsTable)
-      .set({ name, description, categoryId, price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions, slug })
+      .set({ name, description, categoryId: Number(categoryId), price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions, slug })
       .where(eq(productsTable.id, id))
       .returning();
     res.json(formatProduct(product));
@@ -954,7 +980,10 @@ app.put("/api/admin/products/:id", requireAdmin, async (req: any, res: any) => {
 
 app.delete("/api/admin/products/:id", requireAdmin, async (req: any, res: any) => {
   try {
-    await db.delete(productsTable).where(eq(productsTable.id, parseInt(String(req.params.id))));
+    const rawId = req.params.id;
+    const id = Number(Array.isArray(rawId) ? rawId[0] : rawId);
+
+    await db.delete(productsTable).where(eq(productsTable.id, id));
     res.json({ message: "Product deleted" });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete product" });
