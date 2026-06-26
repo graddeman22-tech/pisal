@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 const safeStr = (val: any): string => {
   if (!val) return "";
   if (Array.isArray(val)) return String(val[0]);
-  return String(val);
+  return String(val).toString();
 };
 
 // Helper function to absolutely enforce number type for Drizzle integers
@@ -55,17 +55,17 @@ app.post("/api/auth/send-otp", async (req: any, res: any) => {
     const existing = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, safeStr(phone) as string));
+      .where(eq(usersTable.phone, safeStr(phone) as any));
       
     if (existing.length > 0) {
       await db
         .update(usersTable)
         .set({ otp, otpExpiresAt })
-        .where(eq(usersTable.phone, safeStr(phone) as string));
+        .where(eq(usersTable.phone, safeStr(phone) as any));
     } else {
       await db
         .insert(usersTable)
-        .values({ phone: safeStr(phone) as string, otp, otpExpiresAt });
+        .values({ phone: safeStr(phone) as any, otp, otpExpiresAt });
     }
     
     res.json({ message: "OTP sent successfully", otp });
@@ -88,7 +88,7 @@ app.post("/api/auth/verify-otp", async (req: any, res: any) => {
     const users = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, safeStr(phone) as string));
+      .where(eq(usersTable.phone, safeStr(phone) as any));
       
     const user = users[0];
     if (!user) {
@@ -219,7 +219,7 @@ app.get("/api/products", async (req: any, res: any) => {
     if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
     if (minPrice) conditions.push(gte(productsTable.price, parseFloat(minPrice)));
     if (maxPrice) conditions.push(lte(productsTable.price, parseFloat(maxPrice)));
-    if (category) conditions.push(eq(categoriesTable.slug, safeStr(category) as string));
+    if (category) conditions.push(eq(categoriesTable.slug, safeStr(category) as any));
     
     const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -566,7 +566,7 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
       const coupons = await db
         .select()
         .from(couponsTable)
-        .where(eq(couponsTable.code, (safeStr(couponCode).toUpperCase()) as string));
+        .where(eq(couponsTable.code, (safeStr(couponCode).toUpperCase()) as any));
       const coupon = coupons[0];
       if (coupon && coupon.isActive) {
         if (coupon.discountType === "percent") {
@@ -617,7 +617,7 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
         discount,
         deliveryFee,
         total,
-        couponCode: couponCode ? (safeStr(couponCode) as string) : null,
+        couponCode: couponCode ? (safeStr(couponCode) as any) : null,
         address: addressData,
         items,
         estimatedDelivery,
@@ -670,7 +670,7 @@ app.post("/api/coupons/validate", async (req: any, res: any) => {
     const coupons = await db
       .select()
       .from(couponsTable)
-      .where(eq(couponsTable.code, (safeStr(queryCode).toUpperCase()) as string));
+      .where(eq(couponsTable.code, (safeStr(queryCode).toUpperCase()) as any));
     const coupon = coupons[0];
     if (!coupon) {
       res.json({ valid: false, message: "Invalid coupon code" });
@@ -999,7 +999,7 @@ app.get("/api/admin/orders", requireAdmin, async (req: any, res: any) => {
     
     const conditions = [];
     if (status) {
-      conditions.push(eq(ordersTable.status, safeStr(status) as string));
+      conditions.push(eq(ordersTable.status, safeStr(status) as any));
     }
     const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
