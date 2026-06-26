@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 const safeStr = (val: any): string => {
   if (!val) return "";
   if (Array.isArray(val)) return String(val[0]);
-  return String(val).toString();
+  return String(val);
 };
 
 // Helper function to absolutely enforce number type for Drizzle integers
@@ -55,17 +55,17 @@ app.post("/api/auth/send-otp", async (req: any, res: any) => {
     const existing = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, safeStr(phone) as any));
+      .where(eq(usersTable.phone, phone));
       
     if (existing.length > 0) {
       await db
         .update(usersTable)
         .set({ otp, otpExpiresAt })
-        .where(eq(usersTable.phone, safeStr(phone) as any));
+        .where(eq(usersTable.phone, phone));
     } else {
       await db
         .insert(usersTable)
-        .values({ phone: safeStr(phone) as any, otp, otpExpiresAt });
+        .values({ phone, otp, otpExpiresAt });
     }
     
     res.json({ message: "OTP sent successfully", otp });
@@ -88,7 +88,7 @@ app.post("/api/auth/verify-otp", async (req: any, res: any) => {
     const users = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, safeStr(phone) as any));
+      .where(eq(usersTable.phone, phone));
       
     const user = users[0];
     if (!user) {
@@ -219,7 +219,7 @@ app.get("/api/products", async (req: any, res: any) => {
     if (search) conditions.push(ilike(productsTable.name, `%${search}%`));
     if (minPrice) conditions.push(gte(productsTable.price, parseFloat(minPrice)));
     if (maxPrice) conditions.push(lte(productsTable.price, parseFloat(maxPrice)));
-    if (category) conditions.push(eq(categoriesTable.slug, safeStr(category) as any));
+    if (category) conditions.push(eq(categoriesTable.slug, category as string));
     
     const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -263,7 +263,7 @@ app.get("/api/products/:id", async (req: any, res: any) => {
       .select({ product: productsTable, category: categoriesTable })
       .from(productsTable)
       .leftJoin(categoriesTable, eq(categoriesTable.id, productsTable.categoryId))
-      .where(eq(productsTable.id, safeNum(cleanId)));
+      .where(eq(productsTable.id, cleanId));
 
     if (!results.length) {
       res.status(404).json({ message: "Product not found" });
@@ -278,7 +278,7 @@ app.get("/api/products/:id", async (req: any, res: any) => {
       .leftJoin(categoriesTable, eq(categoriesTable.id, productsTable.categoryId))
       .where(
         and(
-          eq(productsTable.categoryId, safeNum(targetCatId)),
+          eq(productsTable.categoryId, targetCatId),
           sql`${productsTable.id} != ${cleanId}`,
         ),
       )
@@ -301,7 +301,7 @@ async function getCart(userId: number) {
     .select({ cart: cartItemsTable, product: productsTable })
     .from(cartItemsTable)
     .leftJoin(productsTable, eq(productsTable.id, cartItemsTable.productId))
-    .where(eq(cartItemsTable.userId, safeNum(userId)));
+    .where(eq(cartItemsTable.userId, userId));
 
   const cartItems = items.map(({ cart, product }) => ({
     id: cart.id,
@@ -338,7 +338,7 @@ app.post("/api/cart/items", requireAuth, async (req: any, res: any) => {
     const product = await db
       .select()
       .from(productsTable)
-      .where(eq(productsTable.id, safeNum(productId)));
+      .where(eq(productsTable.id, productId));
     if (!product.length) {
       res.status(404).json({ message: "Product not found" });
       return;
@@ -349,7 +349,7 @@ app.post("/api/cart/items", requireAuth, async (req: any, res: any) => {
       .where(
         and(
           eq(cartItemsTable.userId, safeNum(user.id)),
-          eq(cartItemsTable.productId, safeNum(productId)),
+          eq(cartItemsTable.productId, productId),
         ),
       );
     if (existing.length > 0) {
@@ -360,7 +360,7 @@ app.post("/api/cart/items", requireAuth, async (req: any, res: any) => {
     } else {
       await db.insert(cartItemsTable).values({
         userId: safeNum(user.id),
-        productId: safeNum(productId),
+        productId,
         quantity,
         weight: weight || null,
         price: product[0].price,
@@ -382,14 +382,14 @@ app.put("/api/cart/items/:id", requireAuth, async (req: any, res: any) => {
       await db
         .delete(cartItemsTable)
         .where(
-          and(eq(cartItemsTable.id, safeNum(cleanId)), eq(cartItemsTable.userId, safeNum(user.id))),
+          and(eq(cartItemsTable.id, cleanId), eq(cartItemsTable.userId, safeNum(user.id))),
         );
     } else {
       await db
         .update(cartItemsTable)
         .set({ quantity })
         .where(
-          and(eq(cartItemsTable.id, safeNum(cleanId)), eq(cartItemsTable.userId, safeNum(user.id))),
+          and(eq(cartItemsTable.id, cleanId), eq(cartItemsTable.userId, safeNum(user.id))),
         );
     }
     res.json(await getCart(safeNum(user.id)));
@@ -407,7 +407,7 @@ app.delete("/api/cart/items/:id", requireAuth, async (req: any, res: any) => {
       .delete(cartItemsTable)
       .where(
         and(
-          eq(cartItemsTable.id, safeNum(cleanId)),
+          eq(cartItemsTable.id, cleanId),
           eq(cartItemsTable.userId, safeNum(user.id)),
         ),
       );
@@ -463,7 +463,7 @@ app.post("/api/wishlist/:productId", requireAuth, async (req: any, res: any) => 
     const existing = await db
       .select()
       .from(wishlistTable)
-      .where(and(eq(wishlistTable.userId, safeNum(user.id)), eq(wishlistTable.productId, safeNum(productId))));
+      .where(and(eq(wishlistTable.userId, safeNum(user.id)), eq(wishlistTable.productId, productId)));
     if (!existing.length)
       await db.insert(wishlistTable).values({ userId: safeNum(user.id), productId });
     res.json({ message: "Added to wishlist" });
@@ -482,7 +482,7 @@ app.delete("/api/wishlist/:productId", requireAuth, async (req: any, res: any) =
       .where(
         and(
           eq(wishlistTable.userId, safeNum(user.id)),
-          eq(wishlistTable.productId, safeNum(productId)),
+          eq(wishlistTable.productId, productId),
         ),
       );
     res.json({ message: "Removed from wishlist" });
@@ -563,10 +563,11 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
     let discount = 0;
 
     if (couponCode) {
+      const stringCoupon = safeStr(couponCode).toUpperCase();
       const coupons = await db
         .select()
         .from(couponsTable)
-        .where(eq(couponsTable.code, (safeStr(couponCode).toUpperCase()) as any));
+        .where(eq(couponsTable.code, stringCoupon as string));
       const coupon = coupons[0];
       if (coupon && coupon.isActive) {
         if (coupon.discountType === "percent") {
@@ -617,7 +618,7 @@ app.post("/api/orders", requireAuth, async (req: any, res: any) => {
         discount,
         deliveryFee,
         total,
-        couponCode: couponCode ? (safeStr(couponCode) as any) : null,
+        couponCode: couponCode ? (safeStr(couponCode) as string) : null,
         address: addressData,
         items,
         estimatedDelivery,
@@ -646,7 +647,7 @@ app.get("/api/orders/:id", requireAuth, async (req: any, res: any) => {
     const orders = await db
       .select()
       .from(ordersTable)
-      .where(and(eq(ordersTable.id, safeNum(cleanId)), eq(ordersTable.userId, safeNum(user.id))));
+      .where(and(eq(ordersTable.id, cleanId), eq(ordersTable.userId, safeNum(user.id))));
     if (!orders.length) {
       res.status(404).json({ message: "Order not found" });
       return;
@@ -667,10 +668,11 @@ app.post("/api/coupons/validate", async (req: any, res: any) => {
       res.json({ valid: false, message: "Invalid coupon code" });
       return;
     }
+    const stringQueryCode = safeStr(queryCode).toUpperCase();
     const coupons = await db
       .select()
       .from(couponsTable)
-      .where(eq(couponsTable.code, (safeStr(queryCode).toUpperCase()) as any));
+      .where(eq(couponsTable.code, stringQueryCode as string));
     const coupon = coupons[0];
     if (!coupon) {
       res.json({ valid: false, message: "Invalid coupon code" });
@@ -730,7 +732,7 @@ app.get("/api/reviews/product/:productId", async (req: any, res: any) => {
       .select({ review: reviewsTable, user: usersTable })
       .from(reviewsTable)
       .leftJoin(usersTable, eq(usersTable.id, reviewsTable.userId))
-      .where(eq(reviewsTable.productId, safeNum(productId)));
+      .where(eq(reviewsTable.productId, productId));
     res.json(
       reviews.map(({ review, user }) => ({
         id: review.id,
@@ -972,7 +974,7 @@ app.put("/api/admin/products/:id", requireAdmin, async (req: any, res: any) => {
     const [product] = await db
       .update(productsTable)
       .set({ name, description, categoryId: safeNum(categoryId), price, originalPrice, imageUrl, images, inStock, stockQuantity, isFeatured, isBestseller, ingredients, benefits, tags, weightOptions, slug })
-      .where(eq(productsTable.id, safeNum(id)))
+      .where(eq(productsTable.id, id))
       .returning();
     res.json(formatProduct(product));
   } catch (err) {
@@ -984,7 +986,7 @@ app.delete("/api/admin/products/:id", requireAdmin, async (req: any, res: any) =
   try {
     const id = safeNum(req.params.id);
 
-    await db.delete(productsTable).where(eq(productsTable.id, safeNum(id)));
+    await db.delete(productsTable).where(eq(productsTable.id, id));
     res.json({ message: "Product deleted" });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete product" });
@@ -999,7 +1001,8 @@ app.get("/api/admin/orders", requireAdmin, async (req: any, res: any) => {
     
     const conditions = [];
     if (status) {
-      conditions.push(eq(ordersTable.status, safeStr(status) as any));
+      const stringStatus = safeStr(status);
+      conditions.push(eq(ordersTable.status, stringStatus as string));
     }
     const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
