@@ -4,6 +4,7 @@
   "outputDirectory": "artifacts/pisal-store/dist",
   "installCommand": "pnpm install",
   "framework": null,
+  "functions": {},
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

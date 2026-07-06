@@ -1,0 +1,11 @@
+api/
+src/
+drizzle.config.ts
+server.js
+server.cjs
+pisal-server.cjs
+simple-server.cjs
+requirements.yaml
+SUPABASE_SETUP.md
+push-to-github.sh
+vercel-build.sh
