@@ -77,11 +77,15 @@ export default function AdminDashboard() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [savingLogo, setSavingLogo] = useState(false);
 
+  const [activeGateway, setActiveGateway] = useState<"cod" | "razorpay" | "stripe">(() => (localStorage.getItem("pisal_active_gateway") as any) || "cod");
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>(() => localStorage.getItem("pisal_rzp_key_id") || "");
   const [razorpaySecret, setRazorpaySecret] = useState<string>(() => localStorage.getItem("pisal_rzp_secret") || "");
-  const [razorpayEnabled, setRazorpayEnabled] = useState<boolean>(() => localStorage.getItem("pisal_rzp_enabled") === "true");
   const [razorpayMode, setRazorpayMode] = useState<"test" | "live">(() => (localStorage.getItem("pisal_rzp_mode") as "test" | "live") || "test");
+  const [stripePublishable, setStripePublishable] = useState<string>(() => localStorage.getItem("pisal_stripe_pub") || "");
+  const [stripeSecret, setStripeSecret] = useState<string>(() => localStorage.getItem("pisal_stripe_secret") || "");
+  const [stripeMode, setStripeMode] = useState<"test" | "live">(() => (localStorage.getItem("pisal_stripe_mode") as "test" | "live") || "test");
   const [showSecret, setShowSecret] = useState(false);
+  const [showStripeSecret, setShowStripeSecret] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
 
   const [products, setProducts] = useState<any[]>([]);
@@ -310,11 +314,14 @@ export default function AdminDashboard() {
   const handleSavePayment = () => {
     setSavingPayment(true);
     try {
+      localStorage.setItem("pisal_active_gateway", activeGateway);
       localStorage.setItem("pisal_rzp_key_id", razorpayKeyId);
       localStorage.setItem("pisal_rzp_secret", razorpaySecret);
-      localStorage.setItem("pisal_rzp_enabled", String(razorpayEnabled));
       localStorage.setItem("pisal_rzp_mode", razorpayMode);
-      toast({ title: "Payment settings saved!", description: "Razorpay keys are securely stored." });
+      localStorage.setItem("pisal_stripe_pub", stripePublishable);
+      localStorage.setItem("pisal_stripe_secret", stripeSecret);
+      localStorage.setItem("pisal_stripe_mode", stripeMode);
+      toast({ title: "Payment settings saved!", description: `Active gateway: ${activeGateway === "cod" ? "Cash on Delivery" : activeGateway === "razorpay" ? "Razorpay" : "Stripe"}` });
     } finally {
       setSavingPayment(false);
     }
@@ -859,50 +866,89 @@ export default function AdminDashboard() {
           <div className="space-y-6 max-w-2xl">
             <h2 className="text-xl font-bold text-gray-900">Payment Settings</h2>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6">
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <div>
-                  <p className="font-semibold text-gray-800">Razorpay Payments</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Enable online card/UPI payments</p>
-                </div>
-                <button
-                  onClick={() => setRazorpayEnabled(e => !e)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${razorpayEnabled ? "bg-green-100 text-green-700 border border-green-300" : "bg-gray-100 text-gray-500 border border-gray-200"}`}
-                >
-                  {razorpayEnabled ? <><ToggleRight className="w-5 h-5" /> Enabled</> : <><ToggleLeft className="w-5 h-5" /> Disabled</>}
-                </button>
+            {/* Active Gateway Selector */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <p className="text-sm font-bold text-gray-700 mb-4">Select Active Payment Method</p>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { id: "cod", label: "Cash on Delivery", icon: "💵", desc: "No setup needed" },
+                  { id: "razorpay", label: "Razorpay", icon: "🇮🇳", desc: "UPI, Cards, Netbanking" },
+                  { id: "stripe", label: "Stripe", icon: "💳", desc: "International cards" },
+                ].map(gw => (
+                  <button
+                    key={gw.id}
+                    onClick={() => setActiveGateway(gw.id as any)}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all font-medium text-sm ${
+                      activeGateway === gw.id
+                        ? "border-[#8B0000] bg-red-50 text-[#8B0000]"
+                        : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                    }`}
+                  >
+                    <span className="text-2xl">{gw.icon}</span>
+                    <span className="font-bold text-xs text-center leading-tight">{gw.label}</span>
+                    <span className="text-xs text-gray-400 text-center leading-tight">{gw.desc}</span>
+                    {activeGateway === gw.id && (
+                      <span className="text-xs bg-[#8B0000] text-white px-2 py-0.5 rounded-full font-semibold">Active</span>
+                    )}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <p className="text-sm font-semibold text-gray-700">Mode:</p>
-                <div className="flex gap-2">
-                  {(["test", "live"] as const).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => setRazorpayMode(mode)}
-                      className={`px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all capitalize ${razorpayMode === mode ? (mode === "live" ? "bg-green-600 text-white border-green-600" : "bg-blue-600 text-white border-blue-600") : "bg-white text-gray-500 border-gray-200"}`}
-                    >
-                      {mode === "test" ? "🧪 Test Mode" : "🚀 Live Mode"}
-                    </button>
-                  ))}
+            {/* COD Info */}
+            {activeGateway === "cod" && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-xl">💵</div>
+                  <div>
+                    <p className="font-bold text-gray-900">Cash on Delivery</p>
+                    <p className="text-xs text-gray-500">Customer pays when order is delivered</p>
+                  </div>
+                  <span className="ml-auto text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">✓ Active</span>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <p className="text-sm text-green-700 font-semibold mb-2">COD is enabled by default</p>
+                  <ul className="text-xs text-green-600 space-y-1">
+                    <li>• No API keys required</li>
+                    <li>• Customer pays cash at doorstep</li>
+                    <li>• Best for Indian customers</li>
+                    <li>• Switch to Razorpay/Stripe for online payments</li>
+                  </ul>
                 </div>
               </div>
+            )}
 
-              {razorpayMode === "test" && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                  <p className="text-xs text-blue-700">🧪 <strong>Test Mode:</strong> Use Razorpay test keys. No real money is charged. Test card: 4111 1111 1111 1111</p>
+            {/* Razorpay Settings */}
+            {activeGateway === "razorpay" && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl">🇮🇳</div>
+                  <div>
+                    <p className="font-bold text-gray-900">Razorpay API Keys</p>
+                    <p className="text-xs text-gray-500">Get keys from razorpay.com → Settings → API Keys</p>
+                  </div>
                 </div>
-              )}
-              {razorpayMode === "live" && (
-                <div className="bg-amber-50 border border-amber-300 rounded-xl p-3">
-                  <p className="text-xs text-amber-700">🚀 <strong>Live Mode:</strong> Real money will be charged. Use your production Razorpay keys from the Razorpay Dashboard.</p>
-                </div>
-              )}
 
-              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-sm font-semibold text-gray-700">Mode:</p>
+                  <div className="flex gap-2">
+                    {(["test", "live"] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setRazorpayMode(mode)}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${razorpayMode === mode ? (mode === "live" ? "bg-green-600 text-white border-green-600" : "bg-blue-600 text-white border-blue-600") : "bg-white text-gray-500 border-gray-200"}`}
+                      >
+                        {mode === "test" ? "🧪 Test" : "🚀 Live"}
+                      </button>
+                    ))}
+                  </div>
+                  {razorpayMode === "test" && <span className="text-xs text-blue-600 ml-auto">No real money charged</span>}
+                  {razorpayMode === "live" && <span className="text-xs text-green-600 font-bold ml-auto">Real payments ON</span>}
+                </div>
+
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                    <Settings className="w-4 h-4 text-gray-400" /> Razorpay Key ID
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Key ID <span className="text-gray-400 font-normal text-xs">(safe to share)</span>
                   </label>
                   <input
                     type="text"
@@ -911,12 +957,11 @@ export default function AdminDashboard() {
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-200 focus:border-[#8B0000] outline-none font-mono text-sm"
                     placeholder={razorpayMode === "test" ? "rzp_test_xxxxxxxxxxxx" : "rzp_live_xxxxxxxxxxxx"}
                   />
-                  <p className="text-xs text-gray-400 mt-1">This key is safe to expose to the frontend</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                    <Settings className="w-4 h-4 text-gray-400" /> Razorpay Secret Key
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Secret Key <span className="text-red-400 font-normal text-xs">⚠️ keep private</span>
                   </label>
                   <div className="relative">
                     <input
@@ -930,27 +975,111 @@ export default function AdminDashboard() {
                       {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-xs text-red-500 mt-1">⚠️ Keep this secret. For production, move to a backend/.env file.</p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-blue-700 mb-2">📋 Razorpay keys kahan milenge?</p>
+                  <ol className="text-xs text-blue-600 space-y-1 list-decimal list-inside">
+                    <li>razorpay.com pe login karo</li>
+                    <li>Settings → API Keys pe jao</li>
+                    <li>Generate Key karo</li>
+                    <li>Key ID aur Secret copy karo</li>
+                  </ol>
+                  <a href="https://dashboard.razorpay.com/app/keys" target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 text-xs text-blue-700 font-bold underline">
+                    <Globe className="w-3 h-3" /> Razorpay Dashboard kholo ↗
+                  </a>
                 </div>
               </div>
+            )}
 
-              <button
-                onClick={handleSavePayment}
-                disabled={savingPayment}
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#8B0000] to-[#6b0000] text-white font-bold py-3.5 rounded-xl hover:from-[#6b0000] hover:to-[#4a0000] transition-all shadow-lg disabled:opacity-60"
-              >
-                {savingPayment ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving...</> : <><CreditCard className="w-4 h-4" /> Save Payment Settings</>}
-              </button>
+            {/* Stripe Settings */}
+            {activeGateway === "stripe" && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-xl">💳</div>
+                  <div>
+                    <p className="font-bold text-gray-900">Stripe API Keys</p>
+                    <p className="text-xs text-gray-500">Get keys from dashboard.stripe.com → Developers → API Keys</p>
+                  </div>
+                </div>
 
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-                <p className="text-sm font-semibold text-gray-700">📋 Where to get your Razorpay keys:</p>
-                <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
-                  <li>Go to <strong>razorpay.com</strong> → Sign Up / Login</li>
-                  <li>Dashboard → Settings → API Keys</li>
-                  <li>Generate Key ID + Key Secret</li>
-                  <li>Paste them above and click Save</li>
-                </ol>
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-sm font-semibold text-gray-700">Mode:</p>
+                  <div className="flex gap-2">
+                    {(["test", "live"] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setStripeMode(mode)}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${stripeMode === mode ? (mode === "live" ? "bg-green-600 text-white border-green-600" : "bg-purple-600 text-white border-purple-600") : "bg-white text-gray-500 border-gray-200"}`}
+                      >
+                        {mode === "test" ? "🧪 Test" : "🚀 Live"}
+                      </button>
+                    ))}
+                  </div>
+                  {stripeMode === "test" && <span className="text-xs text-purple-600 ml-auto">No real money charged</span>}
+                  {stripeMode === "live" && <span className="text-xs text-green-600 font-bold ml-auto">Real payments ON</span>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Publishable Key <span className="text-gray-400 font-normal text-xs">(safe to share)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={stripePublishable}
+                    onChange={e => setStripePublishable(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-500 outline-none font-mono text-sm"
+                    placeholder={stripeMode === "test" ? "pk_test_xxxxxxxxxxxx" : "pk_live_xxxxxxxxxxxx"}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Secret Key <span className="text-red-400 font-normal text-xs">⚠️ keep private</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showStripeSecret ? "text" : "password"}
+                      value={stripeSecret}
+                      onChange={e => setStripeSecret(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-500 outline-none font-mono text-sm pr-12"
+                      placeholder="••••••••••••••••••••"
+                    />
+                    <button type="button" onClick={() => setShowStripeSecret(s => !s)} className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600">
+                      {showStripeSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-purple-700 mb-2">📋 Stripe keys kahan milenge?</p>
+                  <ol className="text-xs text-purple-600 space-y-1 list-decimal list-inside">
+                    <li>stripe.com pe login karo</li>
+                    <li>Developers → API Keys pe jao</li>
+                    <li>Publishable key aur Secret key copy karo</li>
+                    <li>Upar paste karo aur Save karo</li>
+                  </ol>
+                  <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 text-xs text-purple-700 font-bold underline">
+                    <Globe className="w-3 h-3" /> Stripe Dashboard kholo ↗
+                  </a>
+                </div>
               </div>
+            )}
+
+            {/* Save Button */}
+            <button
+              onClick={handleSavePayment}
+              disabled={savingPayment}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#8B0000] to-[#6b0000] text-white font-bold py-3.5 rounded-2xl hover:from-[#6b0000] hover:to-[#4a0000] transition-all shadow-lg disabled:opacity-60"
+            >
+              {savingPayment ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving...</> : <><CreditCard className="w-4 h-4" /> Save Payment Settings</>}
+            </button>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-xs font-bold text-amber-700 mb-1">⚠️ Important Security Note</p>
+              <p className="text-xs text-amber-600">Secret keys ko kabhi bhi public code mein mat daalo. Production mein inhe backend server ke .env file mein rakhna chahiye.</p>
             </div>
           </div>
         )}
