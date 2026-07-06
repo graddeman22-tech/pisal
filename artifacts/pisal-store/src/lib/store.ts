@@ -15,21 +15,15 @@ interface AppState {
   setCartDrawerOpen: (isOpen: boolean) => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
+  authInitialized: boolean;
   logout: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   isAuthModalOpen: false,
   setAuthModalOpen: (isOpen) => set({ isAuthModalOpen: isOpen }),
-  token: typeof window !== 'undefined' ? localStorage.getItem('pisal_token') : null,
-  setToken: (token) => {
-    if (token) {
-      localStorage.setItem('pisal_token', token);
-    } else {
-      localStorage.removeItem('pisal_token');
-    }
-    set({ token });
-  },
+  token: null,
+  setToken: (token) => set({ token }),
   user: null,
   setUser: (user) => set({ user }),
   session: null,
@@ -38,14 +32,14 @@ export const useAppStore = create<AppState>((set) => ({
   setCartDrawerOpen: (isOpen) => set({ cartDrawerOpen: isOpen }),
   isLoading: false,
   setIsLoading: (loading) => set({ isLoading: loading }),
+  authInitialized: false,
   logout: async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem('pisal_token');
     set({ token: null, user: null, session: null, isAuthModalOpen: false });
   },
 }));
 
-// Initialize auth state from Supabase session
+// Auto-sync Supabase session with store — handles page refresh, tab switch etc.
 if (typeof window !== 'undefined') {
   supabase.auth.getSession().then(({ data: { session } }) => {
     const store = useAppStore.getState();
@@ -54,6 +48,7 @@ if (typeof window !== 'undefined') {
       store.setUser(session.user);
       store.setSession(session);
     }
+    useAppStore.setState({ authInitialized: true });
   });
 
   supabase.auth.onAuthStateChange((_event, session) => {
@@ -67,5 +62,6 @@ if (typeof window !== 'undefined') {
       store.setUser(null);
       store.setSession(null);
     }
+    useAppStore.setState({ authInitialized: true });
   });
 }
