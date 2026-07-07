@@ -7,15 +7,15 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { User, MapPin, Star, Edit2, Plus, Loader2, Phone, Camera } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase"; // Supabase connection imported
+import { supabase } from "@/lib/supabase";
 
-export default function Profile() {
+export default function DashboardProfile() {
   const { token, setAuthModalOpen } = useAppStore();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
-  const [uploading, setUploading] = useState(false); // New state for photo uploading
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "" });
   const [addressForm, setAddressForm] = useState({ name: "", phone: "", line1: "", line2: "", city: "", state: "", pincode: "", isDefault: false });
 
@@ -27,7 +27,7 @@ export default function Profile() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/users/profile"] });
         setIsEditing(false);
-        toast({ title: "Profile updated!" });
+        toast({ title: "Profile updated successfully!" });
       }
     }
   });
@@ -43,33 +43,31 @@ export default function Profile() {
     }
   });
 
-  // 📸 Profile Photo Upload Handler Function
+  // 📸 Direct Handle Avatar Upload to Supabase Storage
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     
     try {
       setUploading(true);
-      toast({ title: "Uploading...", description: "Saving your profile picture." });
+      toast({ title: "Uploading...", description: "Connecting to media bucket." });
 
       const fileExt = file.name.split('.').pop();
       const fileName = `avatar_${profile?.id || Math.random()}_${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      // Upload into Supabase storage bucket named 'profiles'
       const { error: uploadError } = await supabase.storage
         .from('profiles')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Get Public URL of the uploaded image
       const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(filePath);
 
-      // Save avatar URL into the users profile data
-      updateProfile({ data: { ...formData, avatarUrl: urlData.publicUrl } });
+      // Save into system schema profile table array via mutator
+      updateProfile({ data: { name: profile?.name || "", email: profile?.email || "", avatarUrl: urlData.publicUrl } });
       
-      toast({ title: "Success 🎉", description: "Profile photo updated!" });
+      toast({ title: "Success 🎉", description: "Profile photo updated live!" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Upload Failed", description: err.message });
     } finally {
@@ -84,7 +82,7 @@ export default function Profile() {
           <div className="text-center">
             <User className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-2xl font-serif font-bold mb-2">Login Required</h2>
-            <p className="text-muted-foreground mb-6">Please login to view your profile.</p>
+            <p className="text-muted-foreground mb-6">Please login to view your profile backend.</p>
             <Button onClick={() => setAuthModalOpen(true)} className="bg-primary text-white rounded-xl px-8">Login</Button>
           </div>
         </div>
@@ -107,13 +105,12 @@ export default function Profile() {
         <h1 className="text-3xl font-serif font-bold mb-8">My Profile</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Profile Card */}
           <div className="lg:col-span-1">
             <div className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm text-center">
               
-              {/* Dynamic Avatar Container with Camera Trigger */}
+              {/* Camera Trigger Input Overlay on Avatar */}
               <div className="relative w-24 h-24 mx-auto mb-4 group">
-                <div className="w-full h-full rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center overflow-hidden shadow-sm">
+                <div className="w-full h-full rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center overflow-hidden shadow-inner">
                   {uploading ? (
                     <Loader2 className="w-6 h-6 text-primary animate-spin" />
                   ) : profile?.avatarUrl ? (
@@ -123,8 +120,7 @@ export default function Profile() {
                   )}
                 </div>
                 
-                {/* Micro Floating Camera Input Label */}
-                <label className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-white shadow-md cursor-pointer hover:scale-105 transition-transform flex items-center justify-center">
+                <label className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-white shadow-md cursor-pointer hover:scale-110 transition-transform flex items-center justify-center">
                   <Camera className="w-3.5 h-3.5" />
                   <input type="file" accept="image/*" disabled={uploading} className="hidden" onChange={handleAvatarUpload} />
                 </label>
@@ -157,7 +153,6 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Edit Profile */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
@@ -201,7 +196,6 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Addresses */}
             <div className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> Saved Addresses</h3>
