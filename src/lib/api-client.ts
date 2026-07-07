@@ -148,3 +148,31 @@ export const useVerifyOtp = () => {
     isLoading: false
   };
 };
+// Fetch existing payment credentials for dashboard
+export const getPaymentSettings = async () => {
+  const { data, error } = await supabase
+    .from('payment_settings')
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+// Update keys directly from settings dashboard
+export const updatePaymentSettings = async (settings: { razorpay_key: string; stripe_key: string; stripe_secret: string; active_gateway: string }) => {
+  const { data, error } = await supabase
+    .from('payment_settings')
+    .update(settings)
+    .eq('id', 1);
+  if (error) throw error;
+  return data;
+};
+
+// Insert new product from dashboard with gallery image url
+export const addProduct = async (product: { name: string; price: number; category: string; description: string; image_url: string }) => {
+  const { data, error } = await supabase
+    .from('products')
+    .insert([product]);
+  if (error) throw error;
+  return data;
+};
