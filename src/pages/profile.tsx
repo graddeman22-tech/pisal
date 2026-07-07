@@ -5,8 +5,9 @@ import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { User, MapPin, Star, ShoppingBag, Edit2, Plus, Loader2, Phone } from "lucide-react";
+import { User, MapPin, Star, Edit2, Plus, Loader2, Phone, Camera } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase"; // Supabase connection imported
 
 export default function Profile() {
   const { token, setAuthModalOpen } = useAppStore();
@@ -14,6 +15,7 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
+  const [uploading, setUploading] = useState(false); // New state for photo uploading
   const [formData, setFormData] = useState({ name: "", email: "" });
   const [addressForm, setAddressForm] = useState({ name: "", phone: "", line1: "", line2: "", city: "", state: "", pincode: "", isDefault: false });
 
@@ -40,6 +42,40 @@ export default function Profile() {
       }
     }
   });
+
+  // 📸 Profile Photo Upload Handler Function
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    try {
+      setUploading(true);
+      toast({ title: "Uploading...", description: "Saving your profile picture." });
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `avatar_${profile?.id || Math.random()}_${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      // Upload into Supabase storage bucket named 'profiles'
+      const { error: uploadError } = await supabase.storage
+        .from('profiles')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get Public URL of the uploaded image
+      const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(filePath);
+
+      // Save avatar URL into the users profile data
+      updateProfile({ data: { ...formData, avatarUrl: urlData.publicUrl } });
+      
+      toast({ title: "Success 🎉", description: "Profile photo updated!" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Upload Failed", description: err.message });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   if (!token) {
     return (
@@ -74,9 +110,26 @@ export default function Profile() {
           {/* Profile Card */}
           <div className="lg:col-span-1">
             <div className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center mx-auto mb-4">
-                <User className="w-10 h-10 text-primary" />
+              
+              {/* Dynamic Avatar Container with Camera Trigger */}
+              <div className="relative w-24 h-24 mx-auto mb-4 group">
+                <div className="w-full h-full rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center overflow-hidden shadow-sm">
+                  {uploading ? (
+                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                  ) : profile?.avatarUrl ? (
+                    <img src={profile.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-10 h-10 text-primary" />
+                  )}
+                </div>
+                
+                {/* Micro Floating Camera Input Label */}
+                <label className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-white shadow-md cursor-pointer hover:scale-105 transition-transform flex items-center justify-center">
+                  <Camera className="w-3.5 h-3.5" />
+                  <input type="file" accept="image/*" disabled={uploading} className="hidden" onChange={handleAvatarUpload} />
+                </label>
               </div>
+
               <h2 className="text-xl font-serif font-bold mb-1">{profile?.name || "PISAL Customer"}</h2>
               <p className="text-muted-foreground text-sm flex items-center justify-center gap-1"><Phone className="w-3 h-3" /> {profile?.phone}</p>
               {profile?.email && <p className="text-muted-foreground text-sm mt-1">{profile.email}</p>}
