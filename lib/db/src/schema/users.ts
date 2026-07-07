@@ -7,6 +7,7 @@ export const usersTable = pgTable("users", {
   phone: text("phone").notNull().unique(),
   name: text("name"),
   email: text("email"),
+  avatarUrl: text("avatar_url"),
   isAdmin: boolean("is_admin").notNull().default(false),
   loyaltyPoints: integer("loyalty_points").notNull().default(0),
   otp: text("otp"),
