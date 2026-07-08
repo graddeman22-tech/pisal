@@ -43,14 +43,28 @@ export default function DashboardProfile() {
     }
   });
 
-  // 📸 Direct Handle Avatar Upload to Supabase Storage
+  // 📸 Direct Handle Avatar Upload to Supabase Storage with Validation
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     
+    // Validate file
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    
+    if (!allowedTypes.includes(file.type)) {
+      toast({ variant: "destructive", title: "Invalid File Type", description: "Please upload a valid image (JPG, PNG, WebP, or GIF)" });
+      return;
+    }
+    
+    if (file.size > maxSize) {
+      toast({ variant: "destructive", title: "File Too Large", description: "File size must be less than 5MB" });
+      return;
+    }
+    
     try {
       setUploading(true);
-      toast({ title: "Uploading...", description: "Connecting to media bucket." });
+      toast({ title: "Uploading...", description: "Uploading your profile photo." });
 
       const fileExt = file.name.split('.').pop();
       const fileName = `avatar_${profile?.id || Math.random()}_${Date.now()}.${fileExt}`;
@@ -64,12 +78,13 @@ export default function DashboardProfile() {
 
       const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(filePath);
 
-      // Save into system schema profile table array via mutator
+      // Save avatar URL to profile via mutation
       updateProfile({ data: { name: profile?.name || "", email: profile?.email || "", avatarUrl: urlData.publicUrl } });
       
-      toast({ title: "Success 🎉", description: "Profile photo updated live!" });
+      toast({ title: "Success!", description: "Profile photo updated successfully!" });
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Upload Failed", description: err.message });
+      console.error("[v0] Avatar upload error:", err);
+      toast({ variant: "destructive", title: "Upload Failed", description: err.message || "Failed to upload image" });
     } finally {
       setUploading(false);
     }

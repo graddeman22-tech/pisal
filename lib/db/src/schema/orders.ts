@@ -9,6 +9,8 @@ export const ordersTable = pgTable("orders", {
   status: text("status").notNull().default("pending"),
   paymentMethod: text("payment_method").notNull(),
   paymentStatus: text("payment_status").notNull().default("pending"),
+  paymentId: text("payment_id"),
+  paymentLink: text("payment_link"),
   subtotal: real("subtotal").notNull(),
   discount: real("discount").notNull().default(0),
   deliveryFee: real("delivery_fee").notNull().default(0),

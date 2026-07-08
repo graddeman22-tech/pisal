@@ -1,33 +1,112 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState } from "react";
-import { useGetCart, useGetUserAddresses, useCreateOrder } from "@/lib/api-client";
+import { useGetCart, useGetUserAddresses, useCreateOrder, useGetUserProfile } from "@/lib/api-client";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, MapPin, CreditCard, ChevronRight } from "lucide-react";
+import { CheckCircle2, MapPin, CreditCard, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { SuccessModal } from "@/components/SuccessModal";
+import { generateRazorpayPaymentLink } from "@/lib/payments/razorpay";
+import { generatePhonePePaymentLink } from "@/lib/payments/phonepe";
 
 export default function Checkout() {
   const [, setLocation] = useLocation();
   const { data: cart } = useGetCart();
   const { data: addresses } = useGetUserAddresses();
+  const { data: profile } = useGetUserProfile();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedAddress, setSelectedAddress] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "upi" | "cod">("upi");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successOrderId, setSuccessOrderId] = useState<number | null>(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const { mutate: createOrder, isPending } = useCreateOrder({
     mutation: {
-      onSuccess: (order) => {
-        toast({ title: "Order Placed Successfully!", description: `Order ID: #${order.id}` });
-        queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
-        setLocation(`/orders/${order.id}`);
+      onSuccess: async (order) => {
+        // If payment method is COD, show success modal immediately
+        if (paymentMethod === "cod") {
+          setSuccessOrderId(order.id);
+          setShowSuccessModal(true);
+          queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+          return;
+        }
+
+        // For online payments, initiate payment link generation
+        try {
+          setIsProcessingPayment(true);
+          
+          if (paymentMethod === "razorpay") {
+            const paymentResponse = await generateRazorpayPaymentLink({
+              orderId: order.id,
+              customerId: profile?.id || 0,
+              amount: cart?.total || 0,
+              customerName: profile?.name || "Customer",
+              customerEmail: profile?.email || "",
+              customerPhone: profile?.phone || "",
+            });
+
+            // Open payment link in new tab/window
+            if (paymentResponse.paymentLink) {
+              window.open(paymentResponse.paymentLink, "_blank");
+              toast({
+                title: "Payment Link Generated",
+                description: "A new window will open with your payment link. Please complete the payment.",
+              });
+              
+              // Show success modal after brief delay
+              setTimeout(() => {
+                setSuccessOrderId(order.id);
+                setShowSuccessModal(true);
+                queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+              }, 1500);
+            }
+          } else if (paymentMethod === "upi") {
+            // For UPI, try PhonePe
+            const paymentResponse = await generatePhonePePaymentLink({
+              orderId: order.id,
+              customerId: profile?.id || 0,
+              amount: cart?.total || 0,
+              customerName: profile?.name || "Customer",
+              customerEmail: profile?.email || "",
+              customerPhone: profile?.phone || "",
+            });
+
+            if (paymentResponse.paymentLink) {
+              window.open(paymentResponse.paymentLink, "_blank");
+              toast({
+                title: "Payment Link Generated",
+                description: "Please complete the payment using the opened link.",
+              });
+
+              setTimeout(() => {
+                setSuccessOrderId(order.id);
+                setShowSuccessModal(true);
+                queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+              }, 1500);
+            }
+          }
+        } catch (error: any) {
+          console.error("[v0] Payment processing error:", error);
+          toast({
+            variant: "destructive",
+            title: "Payment Processing Failed",
+            description: error.message || "Failed to generate payment link",
+          });
+        } finally {
+          setIsProcessingPayment(false);
+        }
       },
-      onError: () => toast({ title: "Error", description: "Failed to place order", variant: "destructive" })
+      onError: () => {
+        toast({ title: "Error", description: "Failed to place order", variant: "destructive" });
+        setIsProcessingPayment(false);
+      }
     }
   });
 
@@ -37,13 +116,25 @@ export default function Checkout() {
   }
 
   const handlePlaceOrder = () => {
-    if (!selectedAddress) return toast({ title: "Select Address", variant: "destructive" });
+    if (!selectedAddress) {
+      toast({ title: "Select Address", description: "Please select a delivery address", variant: "destructive" });
+      return;
+    }
+    if (!cart || cart.items.length === 0) {
+      toast({ title: "Empty Cart", description: "Your cart is empty", variant: "destructive" });
+      return;
+    }
     createOrder({ 
       data: { 
         addressId: parseInt(selectedAddress), 
         paymentMethod 
       } 
     });
+  };
+
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    setLocation("/");
   };
 
   return (
@@ -128,9 +219,16 @@ export default function Checkout() {
               </RadioGroup>
 
               <div className="flex gap-4 mt-8">
-                <Button variant="outline" onClick={() => setStep(1)} className="h-12 rounded-xl">Back</Button>
-                <Button onClick={handlePlaceOrder} disabled={isPending} className="flex-1 h-12 rounded-xl bg-primary text-white shadow-lg shadow-primary/20 text-lg">
-                  {isPending ? "Processing..." : `Pay ₹${cart.total}`}
+                <Button variant="outline" onClick={() => setStep(1)} disabled={isPending || isProcessingPayment} className="h-12 rounded-xl">Back</Button>
+                <Button onClick={handlePlaceOrder} disabled={isPending || isProcessingPayment} className="flex-1 h-12 rounded-xl bg-primary text-white shadow-lg shadow-primary/20 text-lg">
+                  {isPending || isProcessingPayment ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </span>
+                  ) : (
+                    `Pay ₹${cart.total}`
+                  )}
                 </Button>
               </div>
             </div>
@@ -164,6 +262,20 @@ export default function Checkout() {
           </div>
         </div>
       </div>
+
+      <SuccessModal
+        isOpen={showSuccessModal}
+        title="Order Placed Successfully!"
+        message={
+          paymentMethod === "cod"
+            ? "Your order has been confirmed. Our team will contact you soon for payment."
+            : "Your payment has been processed. You will receive updates on your phone shortly."
+        }
+        orderId={successOrderId}
+        onClose={handleSuccessModalClose}
+        onContinue={handleSuccessModalClose}
+        autoCloseDuration={paymentMethod === "cod" ? 0 : 8000}
+      />
     </Layout>
   );
 }
